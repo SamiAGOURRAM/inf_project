@@ -1,0 +1,57 @@
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Suspense, lazy } from "react";
+import LoadingScreen from "./components/LoadingScreen";
+
+// Lazy load pages for better performance
+const Login = lazy(() => import("./pages/Login"));
+const Signup = lazy(() => import("./pages/Signup"));
+const Offers = lazy(() => import("./pages/Offers"));
+const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
+const AdminEvents = lazy(() => import("./pages/admin/Events"));
+const AdminCompanies = lazy(() => import("./pages/admin/Companies"));
+const StudentDashboard = lazy(() => import("./pages/student/Dashboard"));
+const StudentOffers = lazy(() => import("./pages/student/Offers"));
+const StudentBookings = lazy(() => import("./pages/student/Bookings"));
+const StudentProfile = lazy(() => import("./pages/student/Profile"));
+const CompanyDashboard = lazy(() => import("./pages/company/Dashboard"));
+const CompanyOffers = lazy(() => import("./pages/company/Offers"));
+const CompanyEvents = lazy(() => import("./pages/company/Events"));
+const CompanySchedule = lazy(() => import("./pages/company/Schedule"));
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Suspense fallback={<LoadingScreen />}>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/" element={<Navigate to="/offers" replace />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/offers" element={<Offers />} />
+          
+          {/* Admin Routes */}
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/events" element={<AdminEvents />} />
+          <Route path="/admin/companies" element={<AdminCompanies />} />
+          
+          {/* Student Routes */}
+          <Route path="/student" element={<StudentDashboard />} />
+          <Route path="/student/offers" element={<StudentOffers />} />
+          <Route path="/student/bookings" element={<StudentBookings />} />
+          <Route path="/student/profile" element={<StudentProfile />} />
+          
+          {/* Company Routes */}
+          <Route path="/company" element={<CompanyDashboard />} />
+          <Route path="/company/offers" element={<CompanyOffers />} />
+          <Route path="/company/events" element={<CompanyEvents />} />
+          <Route path="/company/schedule" element={<CompanySchedule />} />
+          
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/offers" replace />} />
+        </Routes>
+      </Suspense>
+    </BrowserRouter>
+  );
+}
+
+export default App;
