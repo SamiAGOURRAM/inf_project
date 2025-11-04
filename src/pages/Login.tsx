@@ -175,6 +175,13 @@ export default function Login() {
 
           {/* Additional Links */}
           <div className="mt-6 text-center space-y-3">
+            <Link
+              to="/forgot-password"
+              className="block text-sm text-primary hover:underline font-medium"
+            >
+              Forgot Password?
+            </Link>
+            
             <p className="text-sm text-muted-foreground">Don't have an account?</p>
             <Link
               to="/signup"

@@ -230,27 +230,35 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="text-center space-y-2">
-            <p className="text-sm text-gray-600">Don't have an account?</p>
-            <div className="text-center space-y-2">
+            <div className="text-center space-y-3">
               <button
                 type="button"
-                onClick={() => router.push('/signup')}
+                onClick={() => router.push('/auth/forgot-password')}
                 className="text-sm text-blue-600 hover:text-blue-800 font-medium"
               >
-                Student Signup
+                Forgot Password?
               </button>
-              <p className="text-xs text-gray-500">
-                Companies: Registration is by invitation only
-              </p>
+              
+              <p className="text-sm text-gray-600">Don't have an account?</p>
+              <div className="text-center space-y-2">
+                <button
+                  type="button"
+                  onClick={() => router.push('/signup')}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  Student Signup
+                </button>
+                <p className="text-xs text-gray-500">
+                  Companies: Registration is by invitation only
+                </p>
+              </div>
+              <button
+                onClick={() => router.push('/offers')}
+                className="text-sm text-gray-600 hover:text-gray-800 block w-full mt-4"
+              >
+                ← Back to Offers
+              </button>
             </div>
-            <button
-              onClick={() => router.push('/offers')}
-              className="text-sm text-gray-600 hover:text-gray-800 block w-full mt-4"
-            >
-              ← Back to Offers
-            </button>
-          </div>
         </div>
       </div>
     </div>

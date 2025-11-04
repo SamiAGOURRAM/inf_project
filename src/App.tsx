@@ -5,6 +5,8 @@ import LoadingScreen from "./components/LoadingScreen";
 // Lazy load pages for better performance
 const Login = lazy(() => import("./pages/Login"));
 const Signup = lazy(() => import("./pages/Signup"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Offers = lazy(() => import("./pages/Offers"));
 const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
 const AdminEvents = lazy(() => import("./pages/admin/Events"));
@@ -29,9 +31,11 @@ function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<Navigate to="/offers" replace />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/offers" element={<Offers />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/offers" element={<Offers />} />
           
           {/* Admin Routes */}
           <Route path="/admin" element={<AdminDashboard />} />
