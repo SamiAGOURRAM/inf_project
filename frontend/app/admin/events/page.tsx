@@ -262,10 +262,34 @@ export default function EventsManagement() {
                         🎯 Sessions
                       </Link>
                       <Link
-                        href={`/admin/events/${event.id}/participants`}
+                        href={`/admin/events/${event.id}/schedule`}
+                        className="bg-orange-100 text-orange-700 px-4 py-2 rounded-md hover:bg-orange-200 transition text-sm font-medium"
+                      >
+                        📋 Schedule
+                      </Link>
+                      <Link
+                        href={`/admin/events/${event.id}/slots`}
+                        className="bg-cyan-100 text-cyan-700 px-4 py-2 rounded-md hover:bg-cyan-200 transition text-sm font-medium"
+                      >
+                        🎫 Slots
+                      </Link>
+                      <Link
+                        href={`/admin/events/${event.id}/companies`}
                         className="bg-green-100 text-green-700 px-4 py-2 rounded-md hover:bg-green-200 transition text-sm font-medium"
                       >
-                        🏢 Participants
+                        🏢 Companies
+                      </Link>
+                      <Link
+                        href={`/admin/events/${event.id}/students`}
+                        className="bg-pink-100 text-pink-700 px-4 py-2 rounded-md hover:bg-pink-200 transition text-sm font-medium"
+                      >
+                        👥 Students
+                      </Link>
+                      <Link
+                        href={`/admin/events/${event.id}/participants`}
+                        className="bg-indigo-100 text-indigo-700 px-4 py-2 rounded-md hover:bg-indigo-200 transition text-sm font-medium"
+                      >
+                        📨 Participants
                       </Link>
                     </div>
                   </div>

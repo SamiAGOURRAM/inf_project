@@ -537,6 +537,56 @@ export type Database = {
           },
         ]
       }
+      event_schedule_items: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          end_time: string
+          event_id: string
+          id: string
+          is_active: boolean | null
+          item_type: string
+          location: string | null
+          name: string
+          start_time: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          end_time: string
+          event_id: string
+          id?: string
+          is_active?: boolean | null
+          item_type?: string
+          location?: string | null
+          name: string
+          start_time: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          end_time?: string
+          event_id?: string
+          id?: string
+          is_active?: boolean | null
+          item_type?: string
+          location?: string | null
+          name?: string
+          start_time?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_schedule_items_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_slots: {
         Row: {
           capacity: number
