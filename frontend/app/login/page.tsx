@@ -232,7 +232,7 @@ export default function LoginPage() {
 
           <div className="text-center space-y-2">
             <p className="text-sm text-gray-600">Don't have an account?</p>
-            <div className="flex gap-4 justify-center">
+            <div className="text-center space-y-2">
               <button
                 type="button"
                 onClick={() => router.push('/signup')}
@@ -240,14 +240,9 @@ export default function LoginPage() {
               >
                 Student Signup
               </button>
-              <span className="text-gray-400">|</span>
-              <button
-                type="button"
-                onClick={() => router.push('/signup/company')}
-                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-              >
-                Company Signup
-              </button>
+              <p className="text-xs text-gray-500">
+                Companies: Registration is by invitation only
+              </p>
             </div>
             <button
               onClick={() => router.push('/offers')}

@@ -28,11 +28,12 @@ export async function GET(request: Request) {
       await new Promise(resolve => setTimeout(resolve, 500))
       
       // Check if profile exists
+      // Note: maybeSingle() instead of single() to avoid 406 errors
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', data.user.id)
-        .single()
+        .maybeSingle()
 
       console.log('Profile check:', { 
         hasProfile: !!profile, 
@@ -59,8 +60,28 @@ export async function GET(request: Request) {
         return NextResponse.redirect(new URL(redirectPath, requestUrl.origin))
       }
 
-      // If no profile exists, redirect to offers
-      console.log('No profile found, redirecting to /offers')
+      // If no profile exists yet, wait a bit longer and retry
+      console.log('No profile found, waiting for trigger...')
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
+      const { data: retryProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .maybeSingle()
+      
+      if (retryProfile) {
+        const redirectPath = retryProfile.role === 'student' ? '/student' 
+          : retryProfile.role === 'company' ? '/company'
+          : retryProfile.role === 'admin' ? '/admin'
+          : '/offers'
+        
+        console.log('Retry successful, redirecting to:', redirectPath)
+        return NextResponse.redirect(new URL(redirectPath, requestUrl.origin))
+      }
+
+      // Still no profile, redirect to offers as fallback
+      console.log('Profile still not found after retry, redirecting to /offers')
       return NextResponse.redirect(new URL('/offers', requestUrl.origin))
     }
   }

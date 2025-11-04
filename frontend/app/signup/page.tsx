@@ -27,13 +27,16 @@ export default function SignupPage() {
     setLoading(true)
 
     try {
+      // Force student role - no company signup allowed
+      const role = 'student'
+      
       // Validate student email domain
-      if (formData.role === 'student' && !formData.email.endsWith('@um6p.ma')) {
+      if (!formData.email.endsWith('@um6p.ma')) {
         throw new Error('Student email must be from UM6P domain (@um6p.ma)')
       }
 
       // Create auth user with all metadata
-      // The database trigger will automatically create profile and company
+      // The database trigger will automatically create profile
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -41,12 +44,9 @@ export default function SignupPage() {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
           data: {
             full_name: formData.full_name,
-            role: formData.role,
+            role: role,
             phone: formData.phone || null,
-            is_deprioritized: formData.role === 'student' ? formData.is_deprioritized : false,
-            // Company fields (will be ignored if student)
-            company_name: formData.company_name || null,
-            description: formData.description || null,
+            is_deprioritized: formData.is_deprioritized,
           },
         },
       })
@@ -78,38 +78,21 @@ export default function SignupPage() {
             </div>
           )}
 
-          {/* Role Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">I am a:</label>
-            <div className="space-y-2">
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  value="student"
-                  checked={formData.role === 'student'}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
-                  className="mr-2"
-                />
-                Student
-              </label>
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  value="company"
-                  checked={formData.role === 'company'}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
-                  className="mr-2"
-                />
-                Company
-              </label>
-            </div>
+          {/* Info Banner - Students Only */}
+          <div className="bg-blue-50 border border-blue-200 p-4 rounded-md">
+            <p className="text-sm text-blue-800">
+              📚 <strong>Student Registration</strong> - For UM6P students only
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              Companies: Registration is by invitation only. Contact the event administrator.
+            </p>
           </div>
 
           {/* Common Fields */}
           <div className="space-y-4">
             <div>
               <label htmlFor="full_name" className="block text-sm font-medium text-gray-700">
-                Full Name {formData.role === 'company' && '(Contact Person)'}
+                Full Name
               </label>
               <input
                 id="full_name"
@@ -123,7 +106,7 @@ export default function SignupPage() {
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email
+                Email (UM6P students only)
               </label>
               <input
                 id="email"
@@ -131,6 +114,7 @@ export default function SignupPage() {
                 required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="student@um6p.ma"
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
               />
             </div>
@@ -165,63 +149,25 @@ export default function SignupPage() {
           </div>
 
           {/* Student-specific fields */}
-          {formData.role === 'student' && (
-            <div className="border-t pt-4">
-              <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-md">
-                <label className="flex items-start cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.is_deprioritized}
-                    onChange={(e) => setFormData({ ...formData, is_deprioritized: e.target.checked })}
-                    className="mt-1 mr-3"
-                  />
-                  <div>
-                    <div className="font-medium text-gray-900">I already have an internship</div>
-                    <div className="text-sm text-gray-600 mt-1">
-                      ⚠️ IMPORTANT: If you check this box, you will NOT be able to book during Phase 1.
-                      You can only book during Phase 2.
-                    </div>
-                  </div>
-                </label>
-              </div>
-            </div>
-          )}
-
-          {/* Company-specific fields */}
-          {formData.role === 'company' && (
-            <div className="space-y-4 border-t pt-4">
-              <div>
-                <label htmlFor="company_name" className="block text-sm font-medium text-gray-700">
-                  Company Name *
-                </label>
+          <div className="border-t pt-4">
+            <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-md">
+              <label className="flex items-start cursor-pointer">
                 <input
-                  id="company_name"
-                  type="text"
-                  required
-                  value={formData.company_name}
-                  onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                  type="checkbox"
+                  checked={formData.is_deprioritized}
+                  onChange={(e) => setFormData({ ...formData, is_deprioritized: e.target.checked })}
+                  className="mt-1 mr-3"
                 />
-              </div>
-
-              <div>
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                  Description
-                </label>
-                <textarea
-                  id="description"
-                  rows={3}
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 p-3 rounded text-sm text-blue-800">
-                Note: Your company will need to be verified by an admin before you can create offers.
-              </div>
+                <div>
+                  <div className="font-medium text-gray-900">I already have an internship</div>
+                  <div className="text-sm text-gray-600 mt-1">
+                    ⚠️ IMPORTANT: If you check this box, you will NOT be able to book during Phase 1.
+                    You can only book during Phase 2.
+                  </div>
+                </div>
+              </label>
             </div>
-          )}
+          </div>
 
           <button
             type="submit"

@@ -89,13 +89,13 @@ export default function OffersPage() {
                 onClick={() => router.push('/login')}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
               >
-                Student Login
+                Login
               </button>
               <button
-                onClick={() => router.push('/signup/company')}
+                onClick={() => router.push('/signup')}
                 className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
               >
-                Company Signup
+                Student Signup
               </button>
             </div>
           </div>

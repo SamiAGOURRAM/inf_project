@@ -7,9 +7,12 @@ import { useRouter } from 'next/navigation'
 
 type TimeSlot = {
   id: string
-  slot_time: string
+  start_time: string
+  end_time: string
   capacity: number
   event_id: string
+  location: string | null
+  room_number: string | null
   bookings: Booking[]
 }
 
@@ -72,9 +75,13 @@ export default function SchedulePage() {
           notes,
           event_slots!inner (
             id,
-            slot_time,
+            start_time,
+            end_time,
             capacity,
-            event_id
+            event_id,
+            location,
+            room_number,
+            company_id
           ),
           profiles!interview_bookings_student_id_fkey (
             full_name,
@@ -90,9 +97,9 @@ export default function SchedulePage() {
             company_id
           )
         `)
-        .eq('offers.company_id', company.id)
+        .eq('event_slots.company_id', company.id)
         .eq('status', 'confirmed')
-        .order('event_slots(slot_time)', { ascending: true })
+        .order('event_slots(start_time)', { ascending: true })
 
       if (bookingsError) throw bookingsError
 
@@ -101,14 +108,18 @@ export default function SchedulePage() {
       
       bookings?.forEach((booking: any) => {
         const slotId = booking.event_slots.id
-        const slotTime = booking.event_slots.slot_time
+        const slotStartTime = booking.event_slots.start_time
+        const slotEndTime = booking.event_slots.end_time
         
         if (!slotsMap.has(slotId)) {
           slotsMap.set(slotId, {
             id: slotId,
-            slot_time: slotTime,
+            start_time: slotStartTime,
+            end_time: slotEndTime,
             capacity: booking.event_slots.capacity,
             event_id: booking.event_slots.event_id,
+            location: booking.event_slots.location,
+            room_number: booking.event_slots.room_number,
             bookings: []
           })
         }
@@ -151,12 +162,14 @@ export default function SchedulePage() {
   }
 
   const exportSchedule = () => {
-    let csv = 'Time Slot,Student Name,Email,Phone,Student Number,Specialization,Graduation Year,Offer,Notes\n'
+    let csv = 'Time Slot,Location,Room,Student Name,Email,Phone,Student Number,Specialization,Graduation Year,Offer,Notes\n'
     
     slots.forEach(slot => {
-      const time = new Date(slot.slot_time).toLocaleString()
+      const time = new Date(slot.start_time).toLocaleString()
+      const location = slot.location || 'TBD'
+      const room = slot.room_number || 'TBD'
       slot.bookings.forEach(booking => {
-        csv += `"${time}","${booking.student.full_name}","${booking.student.email}","${booking.student.phone || ''}","${booking.student.student_number || ''}","${booking.student.specialization || ''}","${booking.student.graduation_year || ''}","${booking.offer.title}","${notes[booking.id] || ''}"\n`
+        csv += `"${time}","${location}","${room}","${booking.student.full_name}","${booking.student.email}","${booking.student.phone || ''}","${booking.student.student_number || ''}","${booking.student.specialization || ''}","${booking.student.graduation_year || ''}","${booking.offer.title}","${notes[booking.id] || ''}"\n`
       })
     })
 
@@ -169,7 +182,7 @@ export default function SchedulePage() {
   }
 
   const filteredSlots = selectedDate
-    ? slots.filter(slot => slot.slot_time.startsWith(selectedDate))
+    ? slots.filter(slot => slot.start_time.startsWith(selectedDate))
     : slots
 
   if (loading) {
@@ -246,112 +259,128 @@ export default function SchedulePage() {
           </div>
         </div>
 
-        {/* Schedule */}
+        {/* Schedule - Grouped by Session */}
         {filteredSlots.length === 0 ? (
           <div className="bg-white rounded-lg shadow p-12 text-center">
             <p className="text-gray-500 mb-4">
-              {selectedDate ? 'No interviews scheduled for this date.' : 'No interviews scheduled yet.'}
+              {selectedDate ? 'Aucune entrevue prévue pour cette date.' : 'Aucune entrevue prévue.'}
             </p>
             <p className="text-sm text-gray-400">
-              Students will appear here once they book interviews with your company.
+              Les étudiants apparaîtront ici une fois qu'ils réserveront des entrevues.
             </p>
           </div>
         ) : (
-          <div className="space-y-6">
-            {filteredSlots.map(slot => (
-              <div key={slot.id} className="bg-white rounded-lg shadow overflow-hidden">
-                <div className="bg-blue-600 text-white px-6 py-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-xl font-semibold">
-                        {new Date(slot.slot_time).toLocaleString('en-US', {
-                          weekday: 'long',
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </h3>
-                      <p className="text-blue-100 text-sm mt-1">
-                        {slot.bookings.length} interview{slot.bookings.length !== 1 ? 's' : ''} scheduled
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-3xl font-bold">{slot.bookings.length}</div>
-                      <div className="text-blue-100 text-sm">students</div>
-                    </div>
+          <div className="space-y-8">
+            {Object.entries(slotsBySession).map(([sessionKey, { session, slots }]) => (
+              <div key={sessionKey} className="bg-white rounded-lg shadow overflow-hidden">
+                {/* Session Header */}
+                {session ? (
+                  <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-4">
+                    <h2 className="text-2xl font-bold">{session.name}</h2>
+                    <p className="text-purple-100 mt-1">
+                      {formatTime(session.start_time)} - {formatTime(session.end_time)}
+                      {' • '}
+                      {slots.reduce((sum, s) => sum + s.bookings.length, 0)} entrevue(s)
+                    </p>
                   </div>
-                </div>
+                ) : (
+                  <div className="bg-gray-600 text-white px-6 py-4">
+                    <h2 className="text-2xl font-bold">Hors session</h2>
+                    <p className="text-gray-100 mt-1">
+                      {slots.reduce((sum, s) => sum + s.bookings.length, 0)} entrevue(s)
+                    </p>
+                  </div>
+                )}
 
-                <div className="p-6 space-y-4">
-                  {slot.bookings.map(booking => (
-                    <div key={booking.id} className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <h4 className="text-lg font-semibold text-gray-900">
-                            {booking.student.full_name}
-                          </h4>
-                          <p className="text-sm text-gray-600 mt-1">
-                            Applying for: <span className="font-medium">{booking.offer.title}</span>
-                          </p>
+                {/* Slots in this session */}
+                <div className="p-6 space-y-6">
+                  {slots.map(slot => (
+                    <div key={slot.id} className="border-l-4 border-blue-500 pl-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
+                        </h3>
+                        <div className="text-sm text-gray-600">
+                          {slot.location && `${slot.location}`}
+                          {slot.room_number && ` • Salle ${slot.room_number}`}
                         </div>
-                        {booking.student.cv_url && (
-                          <a
-                            href={booking.student.cv_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="bg-blue-100 text-blue-700 px-3 py-1 rounded-md hover:bg-blue-200 transition text-sm font-medium"
-                          >
-                            📄 View CV
-                          </a>
-                        )}
                       </div>
 
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-4">
-                        <div>
-                          <span className="text-gray-500">Email:</span>
-                          <p className="font-medium">{booking.student.email}</p>
+                      {slot.bookings.length === 0 ? (
+                        <p className="text-gray-400 text-sm">Aucune réservation</p>
+                      ) : (
+                        <div className="space-y-4">
+                          {slot.bookings.map(booking => (
+                            <div key={booking.id} className="bg-gray-50 rounded-lg p-4 hover:bg-blue-50 transition">
+                              <div className="flex items-start justify-between mb-3">
+                                <div>
+                                  <h4 className="text-lg font-semibold text-gray-900">
+                                    {booking.student.full_name}
+                                  </h4>
+                                  <p className="text-sm text-gray-600 mt-1">
+                                    Offre: <span className="font-medium">{booking.offer.title}</span>
+                                  </p>
+                                </div>
+                                {booking.student.cv_url && (
+                                  <a
+                                    href={booking.student.cv_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 transition text-sm font-medium"
+                                  >
+                                    📄 CV
+                                  </a>
+                                )}
+                              </div>
+
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-4">
+                                <div>
+                                  <span className="text-gray-500">Email:</span>
+                                  <p className="font-medium">{booking.student.email}</p>
+                                </div>
+                                {booking.student.phone && (
+                                  <div>
+                                    <span className="text-gray-500">Téléphone:</span>
+                                    <p className="font-medium">{booking.student.phone}</p>
+                                  </div>
+                                )}
+                                {booking.student.student_number && (
+                                  <div>
+                                    <span className="text-gray-500">Matricule:</span>
+                                    <p className="font-medium">{booking.student.student_number}</p>
+                                  </div>
+                                )}
+                                {booking.student.specialization && (
+                                  <div>
+                                    <span className="text-gray-500">Spécialisation:</span>
+                                    <p className="font-medium">{booking.student.specialization}</p>
+                                  </div>
+                                )}
+                                {booking.student.graduation_year && (
+                                  <div>
+                                    <span className="text-gray-500">Graduation:</span>
+                                    <p className="font-medium">{booking.student.graduation_year}</p>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Notes d'entrevue
+                                </label>
+                                <textarea
+                                  value={notes[booking.id] || ''}
+                                  onChange={(e) => setNotes({ ...notes, [booking.id]: e.target.value })}
+                                  onBlur={(e) => saveNotes(booking.id, e.target.value)}
+                                  placeholder="Ajoutez des notes pendant ou après l'entrevue..."
+                                  rows={2}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                />
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                        {booking.student.phone && (
-                          <div>
-                            <span className="text-gray-500">Phone:</span>
-                            <p className="font-medium">{booking.student.phone}</p>
-                          </div>
-                        )}
-                        {booking.student.student_number && (
-                          <div>
-                            <span className="text-gray-500">Student #:</span>
-                            <p className="font-medium">{booking.student.student_number}</p>
-                          </div>
-                        )}
-                        {booking.student.specialization && (
-                          <div>
-                            <span className="text-gray-500">Specialization:</span>
-                            <p className="font-medium">{booking.student.specialization}</p>
-                          </div>
-                        )}
-                        {booking.student.graduation_year && (
-                          <div>
-                            <span className="text-gray-500">Graduation:</span>
-                            <p className="font-medium">{booking.student.graduation_year}</p>
-                          </div>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Interview Notes
-                        </label>
-                        <textarea
-                          value={notes[booking.id] || ''}
-                          onChange={(e) => setNotes({ ...notes, [booking.id]: e.target.value })}
-                          onBlur={(e) => saveNotes(booking.id, e.target.value)}
-                          placeholder="Add notes during or after the interview..."
-                          rows={2}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
-                        />
-                      </div>
+                      )}
                     </div>
                   ))}
                 </div>

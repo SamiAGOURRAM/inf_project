@@ -8,16 +8,11 @@ import Link from 'next/link'
 type DashboardStats = {
   total_events: number
   upcoming_events: number
-  past_events: number
   total_companies: number
-  verified_companies: number
-  pending_companies: number
-  pending_registrations: number
-  total_registrations: number
-  approved_registrations: number
+  total_participants: number
   total_bookings: number
   total_students: number
-  total_offers: number
+  total_sessions: number
 }
 
 type EventSummary = {
@@ -25,9 +20,8 @@ type EventSummary = {
   name: string
   date: string
   location: string
-  total_companies: number
-  pending_registrations: number
-  approved_registrations: number
+  total_participants: number
+  total_sessions: number
   total_slots: number
   booked_slots: number
   booking_rate: number
@@ -47,8 +41,6 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [upcomingEvents, setUpcomingEvents] = useState<EventSummary[]>([])
-  const [pendingCompanies, setPendingCompanies] = useState<any[]>([])
-  const [pendingRegistrations, setPendingRegistrations] = useState<any[]>([])
 
   useEffect(() => {
     checkAdminAndLoadData()
@@ -89,44 +81,31 @@ export default function AdminDashboard() {
       { count: totalEvents },
       { count: upcomingEventsCount },
       { count: totalCompanies },
-      { count: verifiedCompanies },
-      { count: pendingCompaniesCount },
-      { count: pendingRegs },
-      { count: totalRegs },
-      { count: approvedRegs },
+      { count: totalParticipants },
       { count: totalBookings },
-      { data: studentsData },
-      { count: totalOffers }
+      { count: totalStudents },
+      { count: totalSessions }
     ] = await Promise.all([
       supabase.from('events').select('*', { count: 'exact', head: true }),
       supabase.from('events').select('*', { count: 'exact', head: true }).gte('date', today),
       supabase.from('companies').select('*', { count: 'exact', head: true }),
-      supabase.from('companies').select('*', { count: 'exact', head: true }).eq('verification_status', 'verified'),
-      supabase.from('companies').select('*', { count: 'exact', head: true }).eq('verification_status', 'pending'),
-      supabase.from('event_registrations').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-      supabase.from('event_registrations').select('*', { count: 'exact', head: true }),
-      supabase.from('event_registrations').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
+      supabase.from('event_participants').select('*', { count: 'exact', head: true }),
       supabase.from('interview_bookings').select('*', { count: 'exact', head: true }),
-      supabase.from('students').select('id'),
-      supabase.from('offers').select('*', { count: 'exact', head: true })
+      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'student'),
+      supabase.from('speed_recruiting_sessions').select('*', { count: 'exact', head: true })
     ])
 
     setStats({
       total_events: totalEvents || 0,
       upcoming_events: upcomingEventsCount || 0,
-      past_events: (totalEvents || 0) - (upcomingEventsCount || 0),
       total_companies: totalCompanies || 0,
-      verified_companies: verifiedCompanies || 0,
-      pending_companies: pendingCompaniesCount || 0,
-      pending_registrations: pendingRegs || 0,
-      total_registrations: totalRegs || 0,
-      approved_registrations: approvedRegs || 0,
+      total_participants: totalParticipants || 0,
       total_bookings: totalBookings || 0,
-      total_students: studentsData?.length || 0,
-      total_offers: totalOffers || 0
+      total_students: totalStudents || 0,
+      total_sessions: totalSessions || 0
     })
 
-    // Load upcoming events with registration stats
+    // Load upcoming events with participant and session stats
     const { data: eventsData } = await supabase
       .from('events')
       .select('*')
@@ -138,15 +117,13 @@ export default function AdminDashboard() {
       const eventsWithStats = await Promise.all(
         eventsData.map(async (event) => {
           const [
-            { count: totalComps },
-            { count: pendingRegs },
-            { count: approvedRegs },
+            { count: totalParticipants },
+            { count: totalSessions },
             { count: totalSlots },
             { count: bookedSlots }
           ] = await Promise.all([
-            supabase.from('event_registrations').select('*', { count: 'exact', head: true }).eq('event_id', event.id),
-            supabase.from('event_registrations').select('*', { count: 'exact', head: true }).eq('event_id', event.id).eq('status', 'pending'),
-            supabase.from('event_registrations').select('*', { count: 'exact', head: true }).eq('event_id', event.id).eq('status', 'approved'),
+            supabase.from('event_participants').select('*', { count: 'exact', head: true }).eq('event_id', event.id),
+            supabase.from('speed_recruiting_sessions').select('*', { count: 'exact', head: true }).eq('event_id', event.id),
             supabase.from('event_slots').select('*', { count: 'exact', head: true }).eq('event_id', event.id).eq('is_active', true),
             supabase.from('interview_bookings')
               .select('slot_id', { count: 'exact', head: true })
@@ -163,9 +140,8 @@ export default function AdminDashboard() {
             name: event.name,
             date: event.date,
             location: event.location,
-            total_companies: totalComps || 0,
-            pending_registrations: pendingRegs || 0,
-            approved_registrations: approvedRegs || 0,
+            total_participants: totalParticipants || 0,
+            total_sessions: totalSessions || 0,
             total_slots: totalSlots || 0,
             booked_slots: bookedSlots || 0,
             booking_rate: bookingRate
@@ -174,37 +150,6 @@ export default function AdminDashboard() {
       )
       setUpcomingEvents(eventsWithStats)
     }
-
-    // Load pending companies
-    const { data: pendingComps } = await supabase
-      .from('companies')
-      .select(`
-        id,
-        company_name,
-        industry,
-        created_at,
-        profiles!companies_profile_id_fkey (email, full_name)
-      `)
-      .eq('verification_status', 'pending')
-      .order('created_at', { ascending: false })
-      .limit(5)
-
-    setPendingCompanies(pendingComps || [])
-
-    // Load pending event registrations
-    const { data: pendingRegsData } = await supabase
-      .from('event_registrations')
-      .select(`
-        id,
-        registered_at,
-        companies (id, company_name),
-        events (id, name, date)
-      `)
-      .eq('status', 'pending')
-      .order('registered_at', { ascending: false })
-      .limit(5)
-
-    setPendingRegistrations(pendingRegsData || [])
   }
 
   if (loading) {
@@ -242,32 +187,6 @@ export default function AdminDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Action Required Section */}
-        {(stats && (stats.pending_companies > 0 || stats.pending_registrations > 0)) && (
-          <div className="mb-8 bg-amber-50 border border-amber-200 rounded-lg p-6">
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <svg className="h-6 w-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
-              <div className="ml-3 flex-1">
-                <h3 className="text-sm font-medium text-amber-800">Action Required</h3>
-                <div className="mt-2 text-sm text-amber-700">
-                  <ul className="list-disc list-inside space-y-1">
-                    {stats.pending_companies > 0 && (
-                      <li>{stats.pending_companies} compan{stats.pending_companies > 1 ? 'ies' : 'y'} waiting for verification</li>
-                    )}
-                    {stats.pending_registrations > 0 && (
-                      <li>{stats.pending_registrations} event registration{stats.pending_registrations > 1 ? 's' : ''} pending approval</li>
-                    )}
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Key Metrics Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {/* Events Metric */}
@@ -298,33 +217,28 @@ export default function AdminDashboard() {
                 </svg>
               </div>
               <Link href="/admin/companies" className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
-                Review →
+                View →
               </Link>
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{stats?.verified_companies || 0}</p>
-              <p className="text-sm text-gray-600 mt-1">Verified Companies</p>
-              {stats && stats.pending_companies > 0 && (
-                <p className="text-xs text-amber-600 mt-2 font-medium">{stats.pending_companies} pending approval</p>
-              )}
+              <p className="text-2xl font-bold text-gray-900">{stats?.total_companies || 0}</p>
+              <p className="text-sm text-gray-600 mt-1">Total Companies</p>
+              <p className="text-xs text-gray-500 mt-2">{stats?.total_participants || 0} event participants</p>
             </div>
           </div>
 
-          {/* Registrations Metric */}
+          {/* Sessions Metric */}
           <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
             <div className="flex items-center justify-between mb-4">
               <div className="p-2 bg-purple-100 rounded-lg">
                 <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{stats?.approved_registrations || 0}</p>
-              <p className="text-sm text-gray-600 mt-1">Approved Registrations</p>
-              {stats && stats.pending_registrations > 0 && (
-                <p className="text-xs text-amber-600 mt-2 font-medium">{stats.pending_registrations} pending review</p>
-              )}
+              <p className="text-2xl font-bold text-gray-900">{stats?.total_sessions || 0}</p>
+              <p className="text-sm text-gray-600 mt-1">Active Sessions</p>
             </div>
           </div>
 
@@ -370,7 +284,7 @@ export default function AdminDashboard() {
                   {upcomingEvents.map((event) => (
                     <Link
                       key={event.id}
-                      href={`/admin/events/${event.id}/registrations`}
+                      href={`/admin/events/${event.id}/participants`}
                       className="block p-4 border border-gray-200 rounded-lg hover:border-indigo-300 hover:shadow-md transition"
                     >
                       <div className="flex items-start justify-between mb-2">
@@ -384,18 +298,22 @@ export default function AdminDashboard() {
                               year: 'numeric'
                             })}
                           </p>
+                          {event.location && (
+                            <p className="text-xs text-gray-500 mt-1">📍 {event.location}</p>
+                          )}
                         </div>
-                        {event.pending_registrations > 0 && (
-                          <span className="px-2 py-1 bg-amber-100 text-amber-800 text-xs font-medium rounded-full">
-                            {event.pending_registrations} pending
-                          </span>
-                        )}
                       </div>
                       <div className="grid grid-cols-3 gap-4 mt-3 pt-3 border-t border-gray-100">
                         <div>
-                          <p className="text-xs text-gray-500">Companies</p>
+                          <p className="text-xs text-gray-500">Participants</p>
                           <p className="text-sm font-semibold text-gray-900">
-                            {event.approved_registrations}/{event.total_companies}
+                            {event.total_participants}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Sessions</p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {event.total_sessions}
                           </p>
                         </div>
                         <div>
@@ -404,83 +322,11 @@ export default function AdminDashboard() {
                             {event.booked_slots}/{event.total_slots}
                           </p>
                         </div>
-                        <div>
-                          <p className="text-xs text-gray-500">Fill Rate</p>
-                          <p className="text-sm font-semibold text-gray-900">{event.booking_rate}%</p>
-                        </div>
                       </div>
                     </Link>
                   ))}
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Pending Approvals */}
-          <div className="space-y-6">
-            {/* Pending Companies */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-              <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900">Pending Company Verifications</h2>
-                <Link href="/admin/companies" className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
-                  View all
-                </Link>
-              </div>
-              <div className="p-6">
-                {pendingCompanies.length === 0 ? (
-                  <p className="text-center text-sm text-gray-600 py-4">No pending verifications</p>
-                ) : (
-                  <div className="space-y-3">
-                    {pendingCompanies.map((company: any) => (
-                      <Link
-                        key={company.id}
-                        href="/admin/companies"
-                        className="block p-3 border border-gray-200 rounded-lg hover:border-indigo-300 hover:shadow-sm transition"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-medium text-gray-900">{company.company_name}</p>
-                            <p className="text-sm text-gray-600">{company.industry || 'Industry not specified'}</p>
-                          </div>
-                          <span className="text-xs text-gray-500">
-                            {new Date(company.created_at).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Pending Registrations */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">Pending Event Registrations</h2>
-              </div>
-              <div className="p-6">
-                {pendingRegistrations.length === 0 ? (
-                  <p className="text-center text-sm text-gray-600 py-4">No pending registrations</p>
-                ) : (
-                  <div className="space-y-3">
-                    {pendingRegistrations.map((reg: any) => (
-                      <Link
-                        key={reg.id}
-                        href={`/admin/events/${reg.events.id}/registrations`}
-                        className="block p-3 border border-gray-200 rounded-lg hover:border-indigo-300 hover:shadow-sm transition"
-                      >
-                        <div>
-                          <p className="font-medium text-gray-900">{reg.companies.company_name}</p>
-                          <p className="text-sm text-gray-600 mt-1">{reg.events.name}</p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            Registered {new Date(reg.registered_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
             </div>
           </div>
         </div>

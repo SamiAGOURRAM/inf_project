@@ -9,13 +9,13 @@ type EventPhaseConfig = {
   id: string
   name: string
   date: string
-  phase1_start: string
-  phase1_end: string
-  phase2_start: string
-  phase2_end: string
+  phase1_start_date: string
+  phase1_end_date: string
+  phase2_start_date: string
+  phase2_end_date: string
   current_phase: number
-  phase1_booking_limit: number
-  phase2_booking_limit: number
+  phase1_max_bookings: number
+  phase2_max_bookings: number
 }
 
 export default function EventPhaseManagement() {
@@ -34,8 +34,8 @@ export default function EventPhaseManagement() {
     phase2_start: '',
     phase2_end: '',
     current_phase: 0,
-    phase1_booking_limit: 3,
-    phase2_booking_limit: 6
+    phase1_max_bookings: 3,
+    phase2_max_bookings: 6
   })
 
   useEffect(() => {
@@ -85,13 +85,13 @@ export default function EventPhaseManagement() {
 
     setEvent(data)
     setFormData({
-      phase1_start: data.phase1_start || '',
-      phase1_end: data.phase1_end || '',
-      phase2_start: data.phase2_start || '',
-      phase2_end: data.phase2_end || '',
+      phase1_start: data.phase1_start_date || '',
+      phase1_end: data.phase1_end_date || '',
+      phase2_start: data.phase2_start_date || '',
+      phase2_end: data.phase2_end_date || '',
       current_phase: data.current_phase || 0,
-      phase1_booking_limit: data.phase1_booking_limit || 3,
-      phase2_booking_limit: data.phase2_booking_limit || 6
+      phase1_max_bookings: data.phase1_max_bookings || 3,
+      phase2_max_bookings: data.phase2_max_bookings || 6
     })
   }
 
@@ -115,12 +115,12 @@ export default function EventPhaseManagement() {
         return
       }
 
-      if (formData.phase1_booking_limit <= 0) {
+      if (formData.phase1_max_bookings <= 0) {
         alert('Phase 1 booking limit must be greater than 0')
         return
       }
 
-      if (formData.phase2_booking_limit < formData.phase1_booking_limit) {
+      if (formData.phase2_max_bookings < formData.phase1_max_bookings) {
         alert('Phase 2 booking limit must be greater than or equal to Phase 1 limit')
         return
       }
@@ -129,13 +129,13 @@ export default function EventPhaseManagement() {
       const { error } = await supabase
         .from('events')
         .update({
-          phase1_start: formData.phase1_start,
-          phase1_end: formData.phase1_end,
-          phase2_start: formData.phase2_start,
-          phase2_end: formData.phase2_end,
+          phase1_start_date: formData.phase1_start,
+          phase1_end_date: formData.phase1_end,
+          phase2_start_date: formData.phase2_start,
+          phase2_end_date: formData.phase2_end,
           current_phase: formData.current_phase,
-          phase1_booking_limit: formData.phase1_booking_limit,
-          phase2_booking_limit: formData.phase2_booking_limit
+          phase1_max_bookings: formData.phase1_max_bookings,
+          phase2_max_bookings: formData.phase2_max_bookings
         })
         .eq('id', eventId)
 
@@ -261,7 +261,7 @@ export default function EventPhaseManagement() {
               <div>
                 <p className="font-semibold text-gray-900">Phase 1 - Priority Booking</p>
                 <p className="text-sm text-gray-600">
-                  Only non-"Head Start" students can book (max {formData.phase1_booking_limit} interviews)
+                  Only non-"Head Start" students can book (max {formData.phase1_max_bookings} interviews)
                 </p>
               </div>
             </label>
@@ -279,7 +279,7 @@ export default function EventPhaseManagement() {
               <div>
                 <p className="font-semibold text-gray-900">Phase 2 - Open to All</p>
                 <p className="text-sm text-gray-600">
-                  All students can book (max {formData.phase2_booking_limit} interviews)
+                  All students can book (max {formData.phase2_max_bookings} interviews)
                 </p>
               </div>
             </label>
@@ -319,8 +319,8 @@ export default function EventPhaseManagement() {
               <input
                 type="number"
                 min="1"
-                value={formData.phase1_booking_limit}
-                onChange={(e) => setFormData({ ...formData, phase1_booking_limit: parseInt(e.target.value) })}
+                value={formData.phase1_max_bookings}
+                onChange={(e) => setFormData({ ...formData, phase1_max_bookings: parseInt(e.target.value) })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md"
               />
             </div>
@@ -359,13 +359,13 @@ export default function EventPhaseManagement() {
               </label>
               <input
                 type="number"
-                min={formData.phase1_booking_limit}
-                value={formData.phase2_booking_limit}
-                onChange={(e) => setFormData({ ...formData, phase2_booking_limit: parseInt(e.target.value) })}
+                min={formData.phase1_max_bookings}
+                value={formData.phase2_max_bookings}
+                onChange={(e) => setFormData({ ...formData, phase2_max_bookings: parseInt(e.target.value) })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md"
               />
               <p className="text-sm text-gray-500 mt-1">
-                Must be ≥ Phase 1 limit ({formData.phase1_booking_limit})
+                Must be ≥ Phase 1 limit ({formData.phase1_max_bookings})
               </p>
             </div>
           </div>
@@ -394,11 +394,11 @@ export default function EventPhaseManagement() {
           <ul className="text-sm text-blue-800 space-y-2">
             <li>
               <strong>Phase 1:</strong> Priority booking for standard students (non-"Head Start"). 
-              Limited to {formData.phase1_booking_limit} interviews.
+              Limited to {formData.phase1_max_bookings} interviews.
             </li>
             <li>
               <strong>Phase 2:</strong> Open to all students including "Head Start" students. 
-              Students can book up to {formData.phase2_booking_limit} interviews total.
+              Students can book up to {formData.phase2_max_bookings} interviews total.
             </li>
             <li>
               <strong>Manual Control:</strong> Use the "Manual Phase Control" section to override automatic phase detection.

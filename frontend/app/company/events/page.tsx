@@ -51,25 +51,30 @@ export default function CompanyEventsPage() {
 
       if (companyError) throw companyError;
 
-      // Fetch all events with registration status
+      // Fetch all events
       const { data: eventsData, error: eventsError } = await supabase
         .from('events')
-        .select(`
-          *,
-          event_registrations!left (
-            status,
-            notes
-          )
-        `)
+        .select('*')
         .order('date', { ascending: true });
 
       if (eventsError) throw eventsError;
 
+      // Fetch all registrations for this company
+      const { data: registrations, error: regError } = await supabase
+        .from('event_registrations')
+        .select('event_id, status, notes')
+        .eq('company_id', company.id);
+
+      if (regError) throw regError;
+
+      // Create a map of registrations by event_id
+      const registrationMap = new Map(
+        (registrations || []).map(reg => [reg.event_id, reg])
+      );
+
       // Map events with registration status
       const mappedEvents = eventsData.map((event: any) => {
-        const registration = event.event_registrations?.find(
-          (reg: any) => reg.company_id === company.id
-        );
+        const registration = registrationMap.get(event.id);
 
         return {
           ...event,

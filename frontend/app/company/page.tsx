@@ -97,16 +97,21 @@ export default function CompanyDashboardPage() {
       { count: pendingRegs },
       { count: approvedRegs },
       { count: rejectedRegs },
-      { count: confirmedBookings },
       { count: availableEvents }
     ] = await Promise.all([
       supabase.from('event_registrations').select('*', { count: 'exact', head: true }).eq('company_id', companyId),
       supabase.from('event_registrations').select('*', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'pending'),
       supabase.from('event_registrations').select('*', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'approved'),
       supabase.from('event_registrations').select('*', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'rejected'),
-      supabase.from('interview_bookings').select('*', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'confirmed'),
       supabase.from('events').select('*', { count: 'exact', head: true }).gte('date', today)
     ])
+
+    // Get confirmed bookings by joining through event_slots
+    const { count: confirmedBookings } = await supabase
+      .from('interview_bookings')
+      .select('id, event_slots!inner(company_id)', { count: 'exact', head: true })
+      .eq('event_slots.company_id', companyId)
+      .eq('status', 'confirmed')
 
     setStats({
       total_registrations: totalRegs || 0,
@@ -140,7 +145,11 @@ export default function CompanyDashboardPage() {
             { count: bookingCount }
           ] = await Promise.all([
             supabase.from('offers').select('*', { count: 'exact', head: true }).eq('company_id', companyId).eq('event_id', event.id),
-            supabase.from('interview_bookings').select('*', { count: 'exact', head: true }).eq('company_id', companyId)
+            supabase
+              .from('interview_bookings')
+              .select('id, event_slots!inner(company_id, event_id)', { count: 'exact', head: true })
+              .eq('event_slots.company_id', companyId)
+              .eq('event_slots.event_id', event.id)
           ])
 
           return {
@@ -246,7 +255,7 @@ export default function CompanyDashboardPage() {
         {stats && stats.approved_registrations > 0 && (
           <div className="mb-8 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-lg p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Event Journey</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="relative">
                 <div className="flex items-center mb-2">
                   <div className="flex-shrink-0 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white font-bold">
@@ -254,7 +263,7 @@ export default function CompanyDashboardPage() {
                   </div>
                   <div className="ml-4">
                     <p className="text-2xl font-bold text-gray-900">{stats.approved_registrations}</p>
-                    <p className="text-sm text-gray-600">Approved</p>
+                    <p className="text-sm text-gray-600">Event Approved</p>
                   </div>
                 </div>
               </div>
@@ -274,26 +283,13 @@ export default function CompanyDashboardPage() {
               <div className="relative">
                 <div className="flex items-center mb-2">
                   <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${
-                    dashboard.total_bookings > 0 ? 'bg-green-500' : 'bg-gray-300'
-                  }`}>
-                    {dashboard.total_bookings > 0 ? '✓' : '3'}
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-2xl font-bold text-gray-900">{dashboard.total_bookings}</p>
-                    <p className="text-sm text-gray-600">Interviews Booked</p>
-                  </div>
-                </div>
-              </div>
-              <div className="relative">
-                <div className="flex items-center mb-2">
-                  <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${
                     stats.confirmed_bookings > 0 ? 'bg-green-500' : 'bg-gray-300'
                   }`}>
-                    {stats.confirmed_bookings > 0 ? '✓' : '4'}
+                    {stats.confirmed_bookings > 0 ? '✓' : '3'}
                   </div>
                   <div className="ml-4">
                     <p className="text-2xl font-bold text-gray-900">{stats.confirmed_bookings}</p>
-                    <p className="text-sm text-gray-600">Confirmed</p>
+                    <p className="text-sm text-gray-600">Student Bookings</p>
                   </div>
                 </div>
               </div>
@@ -303,142 +299,81 @@ export default function CompanyDashboardPage() {
 
         {/* Key Metrics Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+          <Link href="/company/offers" className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:border-blue-300 hover:shadow-md transition cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <div className="p-2 bg-blue-100 rounded-lg">
                 <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
               </div>
-              <Link href="/company/offers" className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
-                Manage →
-              </Link>
+              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{dashboard.active_offers}</p>
               <p className="text-sm text-gray-600 mt-1">Active Offers</p>
-              <p className="text-xs text-gray-500 mt-2">{dashboard.total_offers} total offers</p>
+              <p className="text-xs text-gray-500 mt-2">{dashboard.total_offers} total</p>
             </div>
-          </div>
+          </Link>
 
-          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+          <Link href="/company/events" className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:border-purple-300 hover:shadow-md transition cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <div className="p-2 bg-purple-100 rounded-lg">
                 <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               </div>
-              <Link href="/company/registrations" className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
-                View →
-              </Link>
+              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats?.approved_registrations || 0}</p>
               <p className="text-sm text-gray-600 mt-1">Approved Events</p>
-              {stats && stats.pending_registrations > 0 && (
+              {stats && stats.pending_registrations > 0 ? (
                 <p className="text-xs text-amber-600 mt-2 font-medium">{stats.pending_registrations} pending</p>
+              ) : (
+                <p className="text-xs text-gray-500 mt-2">{stats?.available_events || 0} available</p>
               )}
             </div>
-          </div>
+          </Link>
 
-          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+          <Link href="/company/slots" className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:border-green-300 hover:shadow-md transition cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <div className="p-2 bg-green-100 rounded-lg">
                 <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
+              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{dashboard.total_slots}</p>
               <p className="text-sm text-gray-600 mt-1">Interview Slots</p>
-              <p className="text-xs text-gray-500 mt-2">{dashboard.total_bookings} booked</p>
+              <p className="text-xs text-gray-500 mt-2">{dashboard.total_bookings} with bookings</p>
             </div>
-          </div>
+          </Link>
 
-          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+          <Link href="/company/schedule" className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:border-indigo-300 hover:shadow-md transition cursor-pointer">
             <div className="flex items-center justify-between mb-4">
               <div className="p-2 bg-indigo-100 rounded-lg">
                 <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
               </div>
-              <Link href="/company/students" className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
-                View →
-              </Link>
+              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats?.confirmed_bookings || 0}</p>
               <p className="text-sm text-gray-600 mt-1">Confirmed Interviews</p>
               <p className="text-xs text-gray-500 mt-2">{dashboard.total_bookings} total bookings</p>
             </div>
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Link
-              href="/company/events"
-              className="flex items-center justify-between p-4 bg-white border-2 border-indigo-200 rounded-lg hover:border-indigo-400 hover:shadow-md transition group"
-            >
-              <div className="flex items-center">
-                <div className="p-3 bg-indigo-100 rounded-lg group-hover:bg-indigo-200 transition">
-                  <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                  <p className="font-semibold text-gray-900">Browse Events</p>
-                  <p className="text-sm text-gray-600">{stats?.available_events || 0} available</p>
-                </div>
-              </div>
-              <svg className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
-
-            <Link
-              href="/company/offers/new"
-              className="flex items-center justify-between p-4 bg-white border-2 border-green-200 rounded-lg hover:border-green-400 hover:shadow-md transition group"
-            >
-              <div className="flex items-center">
-                <div className="p-3 bg-green-100 rounded-lg group-hover:bg-green-200 transition">
-                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                  <p className="font-semibold text-gray-900">Create Offer</p>
-                  <p className="text-sm text-gray-600">{dashboard.active_offers} active</p>
-                </div>
-              </div>
-              <svg className="w-5 h-5 text-gray-400 group-hover:text-green-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
-
-            <Link
-              href="/company/schedule"
-              className="flex items-center justify-between p-4 bg-white border-2 border-purple-200 rounded-lg hover:border-purple-400 hover:shadow-md transition group"
-            >
-              <div className="flex items-center">
-                <div className="p-3 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition">
-                  <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div className="ml-4">
-                  <p className="font-semibold text-gray-900">View Schedule</p>
-                  <p className="text-sm text-gray-600">{dashboard.total_slots} slots</p>
-                </div>
-              </div>
-              <svg className="w-5 h-5 text-gray-400 group-hover:text-purple-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
-          </div>
+          </Link>
         </div>
 
         {/* Upcoming Events */}
