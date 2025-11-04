@@ -209,7 +209,7 @@ export default function AdminEvents() {
                 )}
 
                 {/* Management Links */}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
                   <Link
                     to={`/admin/events/${event.id}/quick-invite`}
                     className="flex items-center gap-2 px-4 py-3 bg-primary/5 border border-primary/20 rounded-lg hover:bg-primary/10 transition-colors group"
@@ -218,11 +218,11 @@ export default function AdminEvents() {
                     <span className="text-sm font-medium text-foreground">Quick Invite</span>
                   </Link>
                   <Link
-                    to={`/admin/events/${event.id}/participants`}
-                    className="flex items-center gap-2 px-4 py-3 bg-accent/5 border border-accent/20 rounded-lg hover:bg-accent/10 transition-colors"
+                    to={`/admin/events/${event.id}/phases`}
+                    className="flex items-center gap-2 px-4 py-3 bg-info/5 border border-info/20 rounded-lg hover:bg-info/10 transition-colors"
                   >
-                    <Users className="w-5 h-5 text-accent" />
-                    <span className="text-sm font-medium text-foreground">Participants</span>
+                    <Target className="w-5 h-5 text-info" />
+                    <span className="text-sm font-medium text-foreground">Phases</span>
                   </Link>
                   <Link
                     to={`/admin/events/${event.id}/sessions`}
@@ -232,11 +232,39 @@ export default function AdminEvents() {
                     <span className="text-sm font-medium text-foreground">Sessions</span>
                   </Link>
                   <Link
-                    to={`/admin/events/${event.id}/phases`}
+                    to={`/admin/events/${event.id}/schedule`}
+                    className="flex items-center gap-2 px-4 py-3 bg-warning/5 border border-warning/20 rounded-lg hover:bg-warning/10 transition-colors"
+                  >
+                    <Calendar className="w-5 h-5 text-warning" />
+                    <span className="text-sm font-medium text-foreground">Schedule</span>
+                  </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/slots`}
+                    className="flex items-center gap-2 px-4 py-3 bg-accent/5 border border-accent/20 rounded-lg hover:bg-accent/10 transition-colors"
+                  >
+                    <Clock className="w-5 h-5 text-accent" />
+                    <span className="text-sm font-medium text-foreground">Slots</span>
+                  </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/companies`}
+                    className="flex items-center gap-2 px-4 py-3 bg-success/5 border border-success/20 rounded-lg hover:bg-success/10 transition-colors"
+                  >
+                    <Users className="w-5 h-5 text-success" />
+                    <span className="text-sm font-medium text-foreground">Companies</span>
+                  </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/students`}
+                    className="flex items-center gap-2 px-4 py-3 bg-primary/5 border border-primary/20 rounded-lg hover:bg-primary/10 transition-colors"
+                  >
+                    <Users className="w-5 h-5 text-primary" />
+                    <span className="text-sm font-medium text-foreground">Students</span>
+                  </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/participants`}
                     className="flex items-center gap-2 px-4 py-3 bg-info/5 border border-info/20 rounded-lg hover:bg-info/10 transition-colors"
                   >
-                    <Target className="w-5 h-5 text-info" />
-                    <span className="text-sm font-medium text-foreground">Phases</span>
+                    <Users className="w-5 h-5 text-info" />
+                    <span className="text-sm font-medium text-foreground">Participants</span>
                   </Link>
                 </div>
               </div>

@@ -15,6 +15,11 @@ const QuickInvite = lazy(() => import("./pages/admin/events/QuickInvite"));
 const Participants = lazy(() => import("./pages/admin/events/Participants"));
 const Sessions = lazy(() => import("./pages/admin/events/Sessions"));
 const Phases = lazy(() => import("./pages/admin/events/Phases"));
+const EventSchedule = lazy(() => import("./pages/admin/events/Schedule"));
+const EventSlots = lazy(() => import("./pages/admin/events/Slots"));
+const EventCompanies = lazy(() => import("./pages/admin/events/Companies"));
+const CompanyDetail = lazy(() => import("./pages/admin/events/CompanyDetail"));
+const EventStudents = lazy(() => import("./pages/admin/events/Students"));
 const StudentDashboard = lazy(() => import("./pages/student/Dashboard"));
 const StudentOffers = lazy(() => import("./pages/student/Offers"));
 const StudentBookings = lazy(() => import("./pages/student/Bookings"));
@@ -44,6 +49,11 @@ function App() {
           <Route path="/admin/events/:id/participants" element={<Participants />} />
           <Route path="/admin/events/:id/sessions" element={<Sessions />} />
           <Route path="/admin/events/:id/phases" element={<Phases />} />
+          <Route path="/admin/events/:id/schedule" element={<EventSchedule />} />
+          <Route path="/admin/events/:id/slots" element={<EventSlots />} />
+          <Route path="/admin/events/:id/companies" element={<EventCompanies />} />
+          <Route path="/admin/events/:id/companies/:companyId" element={<CompanyDetail />} />
+          <Route path="/admin/events/:id/students" element={<EventStudents />} />
           <Route path="/admin/companies" element={<AdminCompanies />} />
           
           {/* Student Routes */}
