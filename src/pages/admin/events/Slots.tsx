@@ -26,11 +26,6 @@ type Event = {
   date: string
 }
 
-type Session = {
-  id: string
-  name: string
-}
-
 type Company = {
   id: string
   company_name: string
@@ -42,10 +37,8 @@ export default function EventSlots() {
   const [loading, setLoading] = useState(true)
   const [event, setEvent] = useState<Event | null>(null)
   const [slots, setSlots] = useState<Slot[]>([])
-  const [sessions, setSessions] = useState<Session[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   
-  const [filterSession, setFilterSession] = useState<string>('all')
   const [filterCompany, setFilterCompany] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
 
@@ -91,14 +84,6 @@ export default function EventSlots() {
 
     if (eventData) setEvent(eventData)
 
-    const { data: sessionsData } = await supabase
-      .from('speed_recruiting_sessions')
-      .select('id, name')
-      .eq('event_id', eventId)
-      .order('start_time')
-
-    if (sessionsData) setSessions(sessionsData)
-
     const { data: participantsData } = await supabase
       .from('event_participants')
       .select(`
@@ -125,15 +110,16 @@ export default function EventSlots() {
         capacity,
         company_id,
         session_id,
-        companies!inner (
+        companies (
           company_name,
           company_code
         ),
-        speed_recruiting_sessions!inner (
+        speed_recruiting_sessions (
           name
         )
       `)
       .eq('event_id', eventId)
+      .eq('is_active', true)
       .order('start_time')
 
     if (slotsData) {
@@ -157,12 +143,29 @@ export default function EventSlots() {
   }
 
   const filteredSlots = slots.filter(slot => {
-    if (filterSession !== 'all' && slot.session_id !== filterSession) return false
     if (filterCompany !== 'all' && slot.company_id !== filterCompany) return false
     if (filterStatus === 'available' && slot.bookings_count >= slot.capacity) return false
     if (filterStatus === 'full' && slot.bookings_count < slot.capacity) return false
     return true
   })
+
+  // Group slots by time
+  const slotsByTime = filteredSlots.reduce((acc, slot) => {
+    const timeKey = `${slot.start_time}-${slot.end_time}`
+    if (!acc[timeKey]) {
+      acc[timeKey] = {
+        start_time: slot.start_time,
+        end_time: slot.end_time,
+        slots: []
+      }
+    }
+    acc[timeKey].slots.push(slot)
+    return acc
+  }, {} as Record<string, { start_time: string; end_time: string; slots: Slot[] }>)
+
+  const timeSlots = Object.values(slotsByTime).sort((a, b) => 
+    new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+  )
 
   const stats = {
     total: slots.length,
@@ -234,21 +237,7 @@ export default function EventSlots() {
             <h3 className="text-lg font-semibold">Filters</h3>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Session</label>
-              <select
-                value={filterSession}
-                onChange={(e) => setFilterSession(e.target.value)}
-                className="w-full px-3 py-2 bg-background border rounded-md"
-              >
-                <option value="all">All Sessions</option>
-                {sessions.map(session => (
-                  <option key={session.id} value={session.id}>{session.name}</option>
-                ))}
-              </select>
-            </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2">Company</label>
               <select
@@ -277,10 +266,9 @@ export default function EventSlots() {
             </div>
           </div>
 
-          {(filterSession !== 'all' || filterCompany !== 'all' || filterStatus !== 'all') && (
+          {(filterCompany !== 'all' || filterStatus !== 'all') && (
             <button
               onClick={() => {
-                setFilterSession('all')
                 setFilterCompany('all')
                 setFilterStatus('all')
               }}
@@ -291,78 +279,86 @@ export default function EventSlots() {
           )}
         </div>
 
-        {/* Slots Table */}
-        <div className="bg-card rounded-lg border overflow-hidden">
+        {/* Schedule View */}
+        <div className="bg-card rounded-lg border">
           <div className="px-6 py-4 border-b">
             <h3 className="text-lg font-semibold">
-              Interview Slots ({filteredSlots.length})
+              Interview Schedule ({filteredSlots.length} slots)
             </h3>
           </div>
 
-          {filteredSlots.length === 0 ? (
+          {timeSlots.length === 0 ? (
             <div className="px-6 py-12 text-center text-muted-foreground">
               <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>No slots found matching your filters.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b bg-muted">
-                    <th className="text-left py-3 px-4 font-semibold">Time</th>
-                    <th className="text-left py-3 px-4 font-semibold">Session</th>
-                    <th className="text-left py-3 px-4 font-semibold">Company</th>
-                    <th className="text-center py-3 px-4 font-semibold">Bookings</th>
-                    <th className="text-center py-3 px-4 font-semibold">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredSlots.map(slot => (
-                    <tr key={slot.id} className="border-b hover:bg-muted/50">
-                      <td className="py-3 px-4 text-sm">
-                        {new Date(slot.start_time).toLocaleTimeString('en-US', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                        {' - '}
-                        {new Date(slot.end_time).toLocaleTimeString('en-US', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </td>
-                      <td className="py-3 px-4 text-sm">
-                        {slot.speed_recruiting_sessions.name}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div>
-                          <p className="text-sm font-medium">
-                            {slot.companies.company_name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {slot.companies.company_code}
-                          </p>
+            <div className="divide-y">
+              {timeSlots.map((timeSlot, idx) => (
+                <div key={idx} className="p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="text-lg font-semibold text-primary">
+                      {new Date(timeSlot.start_time).toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                      {' - '}
+                      {new Date(timeSlot.end_time).toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </div>
+                    <span className="text-sm text-muted-foreground">
+                      ({timeSlot.slots.length} {timeSlot.slots.length === 1 ? 'slot' : 'slots'})
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {timeSlot.slots.map(slot => (
+                      <div 
+                        key={slot.id} 
+                        className={`p-4 rounded-lg border ${
+                          slot.bookings_count >= slot.capacity 
+                            ? 'bg-destructive/5 border-destructive/20' 
+                            : 'bg-success/5 border-success/20'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">
+                              {slot.companies?.company_name || 'Unknown Company'}
+                            </p>
+                            {slot.companies?.company_code && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {slot.companies.company_code}
+                              </p>
+                            )}
+                          </div>
+                          {slot.bookings_count >= slot.capacity ? (
+                            <span className="px-2 py-1 bg-destructive/20 text-destructive text-xs rounded-full font-medium">
+                              Full
+                            </span>
+                          ) : (
+                            <span className="px-2 py-1 bg-success/20 text-success text-xs rounded-full font-medium">
+                              {slot.capacity - slot.bookings_count} left
+                            </span>
+                          )}
                         </div>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <span className="text-sm font-medium">
-                          {slot.bookings_count} / {slot.capacity}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        {slot.bookings_count >= slot.capacity ? (
-                          <span className="px-2 py-1 bg-destructive/10 text-destructive text-xs rounded-full">
-                            Full
-                          </span>
-                        ) : (
-                          <span className="px-2 py-1 bg-success/10 text-success text-xs rounded-full">
-                            Available
-                          </span>
+                        
+                        {slot.speed_recruiting_sessions?.name && (
+                          <p className="text-xs text-muted-foreground mb-2">
+                            {slot.speed_recruiting_sessions.name}
+                          </p>
                         )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+
+                        <div className="text-xs text-muted-foreground">
+                          {slot.bookings_count} / {slot.capacity} booked
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
