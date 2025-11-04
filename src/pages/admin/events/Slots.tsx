@@ -101,28 +101,39 @@ export default function EventSlots() {
       setCompanies(uniqueCompanies)
     }
 
-    const { data: slotsData } = await supabase
+    // Fetch slots without embedded relations
+    const { data: slotsData, error: slotsError } = await supabase
       .from('event_slots')
-      .select(`
-        id,
-        start_time,
-        end_time,
-        capacity,
-        company_id,
-        session_id,
-        companies (
-          company_name,
-          company_code
-        ),
-        speed_recruiting_sessions (
-          name
-        )
-      `)
+      .select('id, start_time, end_time, capacity, company_id, session_id')
       .eq('event_id', eventId)
       .eq('is_active', true)
       .order('start_time')
 
-    if (slotsData) {
+    console.log('Slots data:', slotsData, 'Error:', slotsError)
+
+    if (slotsData && slotsData.length > 0) {
+      // Get unique company IDs
+      const companyIds = [...new Set(slotsData.map(s => s.company_id))]
+      const { data: companiesData } = await supabase
+        .from('companies')
+        .select('id, company_name, company_code')
+        .in('id', companyIds)
+
+      const companiesMap = new Map(companiesData?.map(c => [c.id, c]) || [])
+
+      // Get unique session IDs
+      const sessionIds = [...new Set(slotsData.map(s => s.session_id).filter(Boolean))]
+      let sessionsMap = new Map()
+      
+      if (sessionIds.length > 0) {
+        const { data: sessionsData } = await supabase
+          .from('speed_recruiting_sessions')
+          .select('id, name')
+          .in('id', sessionIds)
+        
+        sessionsMap = new Map(sessionsData?.map(s => [s.id, s]) || [])
+      }
+
       const slotsWithCounts = await Promise.all(
         slotsData.map(async (slot: any) => {
           const { count } = await supabase
@@ -133,12 +144,16 @@ export default function EventSlots() {
 
           return {
             ...slot,
+            companies: companiesMap.get(slot.company_id) || { company_name: 'Unknown', company_code: 'N/A' },
+            speed_recruiting_sessions: slot.session_id ? sessionsMap.get(slot.session_id) : null,
             bookings_count: count || 0
           }
         })
       )
 
       setSlots(slotsWithCounts as any)
+    } else {
+      setSlots([])
     }
   }
 
