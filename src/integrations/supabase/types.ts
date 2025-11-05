@@ -1297,6 +1297,13 @@ export type Database = {
         Args: { p_notes?: string; p_registration_id: string; p_status: string }
         Returns: undefined
       }
+      fn_regenerate_event_slots: {
+        Args: { p_session_id: string }
+        Returns: {
+          companies_affected: number
+          slots_created: number
+        }[]
+      }
       fn_regenerate_session_slots: {
         Args: { p_event_id: string }
         Returns: {

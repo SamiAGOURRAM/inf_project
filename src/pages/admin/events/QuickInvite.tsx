@@ -116,9 +116,16 @@ export default function QuickInvitePage() {
             });
           }
         } else if (data.action === 'send_notification_email') {
+          // Count auto-generated slots for feedback
+          const { count: slotCount } = await supabase
+            .from('event_slots')
+            .select('*', { count: 'exact', head: true })
+            .eq('company_id', data.company_id)
+            .eq('event_id', eventId);
+
           setResult({
             ...data,
-            message: data.message + '\n\n✅ Company added to event!'
+            message: data.message + `\n\n✅ Company added to event!\n🎯 ${slotCount || 0} interview slots automatically generated`
           });
         }
 
@@ -176,7 +183,14 @@ export default function QuickInvitePage() {
 
       if (error) throw error;
 
-      alert(`✅ ${companyName} has been invited to the event!`);
+      // Count how many slots were auto-generated
+      const { count: slotCount } = await supabase
+        .from('event_slots')
+        .select('*', { count: 'exact', head: true })
+        .eq('company_id', companyId)
+        .eq('event_id', eventId);
+
+      alert(`✅ ${companyName} invited to the event!\n\n🎯 ${slotCount || 0} interview slots automatically generated`);
       await handleSearch();
     } catch (error: any) {
       alert('Error: ' + error.message);

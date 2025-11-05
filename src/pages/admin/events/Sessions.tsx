@@ -208,63 +208,28 @@ export default function SessionManagement() {
   };
 
   const generateSlotsForSession = async (session: Session) => {
-    if (!confirm(`Generate interview slots for "${session.name}"?\n\nThis will create ~${calculateSlotCount(session)} time slots for each participating company.`)) {
+    if (!confirm(`Regenerate interview slots for "${session.name}"?\n\nThis will:\n✓ Delete unbooked slots\n✓ Keep slots with existing bookings\n✓ Generate fresh slots for all ${event?.companies?.length || 0} companies\n\nEstimated: ~${calculateSlotCount(session)} slots per company`)) {
       return;
     }
 
     try {
       setGenerating(true);
 
-      // Get all participating companies for this event
-      const { data: participants } = await supabase
-        .from('event_participants')
-        .select('company_id')
-        .eq('event_id', eventId);
-
-      if (!participants || participants.length === 0) {
-        alert('No companies are registered for this event. Please invite companies first.');
-        return;
-      }
-
-      // Generate time slots based on session config
-      const slots: any[] = [];
-      const start = new Date(session.start_time);
-      const end = new Date(session.end_time);
-      const slotDuration = (session.interview_duration_minutes + session.buffer_minutes) * 60 * 1000;
-
-      let currentTime = start.getTime();
-      while (currentTime + (session.interview_duration_minutes * 60 * 1000) <= end.getTime()) {
-        const slotStart = new Date(currentTime);
-        const slotEnd = new Date(currentTime + (session.interview_duration_minutes * 60 * 1000));
-
-        // Create a slot for EACH company
-        for (const participant of participants) {
-          slots.push({
-            event_id: eventId,
-            company_id: participant.company_id,
-            session_id: session.id,
-            start_time: slotStart.toISOString(),
-            end_time: slotEnd.toISOString(),
-            capacity: session.slots_per_time,
-            is_active: true,
-            offer_id: null // Slots are company-level, not offer-specific
-          });
-        }
-
-        currentTime += slotDuration;
-      }
-
-      // Insert all slots
-      const { error } = await supabase
-        .from('event_slots')
-        .insert(slots);
+      // Use the new database function for atomic regeneration
+      const { data, error } = await supabase
+        .rpc('fn_regenerate_event_slots', {
+          p_session_id: session.id
+        });
 
       if (error) throw error;
 
-      alert(`Successfully generated ${slots.length} interview slots!\n\n${slots.length / participants.length} slots per company × ${participants.length} companies`);
+      const result = data?.[0];
+      if (result) {
+        alert(`✅ Slot regeneration complete!\n\n📊 ${result.slots_created} total slots created\n🏢 ${result.companies_affected} companies updated\n📈 ~${Math.floor(result.slots_created / result.companies_affected)} slots per company`);
+      }
     } catch (err) {
-      console.error('Error generating slots:', err);
-      alert('Error generating slots: ' + (err as any).message);
+      console.error('Error regenerating slots:', err);
+      alert('❌ Error regenerating slots: ' + (err as any).message);
     } finally {
       setGenerating(false);
     }
@@ -376,7 +341,7 @@ export default function SessionManagement() {
                           disabled={generating}
                           className="px-3 py-1.5 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 transition disabled:opacity-50"
                         >
-                          {generating ? 'Generating...' : 'Generate Slots'}
+                          {generating ? '⏳ Regenerating...' : '🔄 Regenerate Slots'}
                         </button>
                       </div>
                     </div>
