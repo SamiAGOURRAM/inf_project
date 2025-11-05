@@ -138,7 +138,7 @@ export default function EventSlots() {
   const loadSlotDetails = async (timeKey: string, slotIds: string[]) => {
     setLoadingDetails(true)
     try {
-      // Fetch all bookings for these slots with student and company info
+      // Fetch all bookings for these slots with student info
       const { data: bookingsData } = await supabase
         .from('interview_bookings')
         .select(`
@@ -153,28 +153,37 @@ export default function EventSlots() {
         .in('slot_id', slotIds)
         .eq('status', 'confirmed')
 
-      // Fetch slot company info
+      // Fetch slot company info separately
       const { data: slotsData } = await supabase
         .from('event_slots')
-        .select(`
-          id,
-          company_id,
-          companies (
-            company_name,
-            company_code
-          )
-        `)
+        .select('id, company_id, session_id')
         .in('id', slotIds)
+
+      if (!slotsData) {
+        setSlotDetails([])
+        return
+      }
+
+      // Get unique company IDs
+      const companyIds = [...new Set(slotsData.map(s => s.company_id))]
+      const { data: companiesData } = await supabase
+        .from('companies')
+        .select('id, company_name, company_code')
+        .in('id', companyIds)
+
+      const companiesMap = new Map(companiesData?.map(c => [c.id, c]) || [])
 
       // Group bookings by company
       const companyMap = new Map<string, SlotDetails>()
       
-      slotsData?.forEach((slot: any) => {
+      slotsData.forEach((slot: any) => {
         const companyKey = slot.company_id
+        const companyInfo = companiesMap.get(companyKey)
+        
         if (!companyMap.has(companyKey)) {
           companyMap.set(companyKey, {
-            company_name: slot.companies?.company_name || 'Unknown',
-            company_code: slot.companies?.company_code || 'N/A',
+            company_name: companyInfo?.company_name || 'Unknown',
+            company_code: companyInfo?.company_code || 'N/A',
             bookings: []
           })
         }
