@@ -21,7 +21,6 @@ type EventStats = {
   total_students: number;
   total_slots: number;
   available_slots: number;
-  booking_rate: number;
   top_company_name: string;
   top_company_bookings: number;
 };
@@ -29,7 +28,8 @@ type EventStats = {
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [nextEvent, setNextEvent] = useState<Event | null>(null);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [stats, setStats] = useState<EventStats | null>(null);
   const [showBulkImport, setShowBulkImport] = useState(false);
 
@@ -67,39 +67,53 @@ export default function AdminDashboard() {
   const loadDashboardData = async () => {
     const today = new Date().toISOString();
 
-    // Get next upcoming event
-    const { data: upcomingEvent } = await supabase
+    // Get all events sorted by date (upcoming first)
+    const { data: allEvents } = await supabase
       .from('events')
       .select('id, name, date, location, current_phase, phase1_max_bookings, phase2_max_bookings')
-      .gte('date', today)
-      .order('date', { ascending: true })
-      .limit(1)
-      .single();
+      .order('date', { ascending: true });
 
-    if (upcomingEvent) {
-      setNextEvent(upcomingEvent);
+    if (allEvents && allEvents.length > 0) {
+      setEvents(allEvents);
+      
+      // Find the closest upcoming event
+      const upcomingEvent = allEvents.find(e => new Date(e.date) >= new Date(today)) || allEvents[0];
+      setSelectedEventId(upcomingEvent.id);
+      
+      await loadEventStats(upcomingEvent.id);
+    }
+  };
+
+  const loadEventStats = async (eventId: string) => {
+    const event = events.find(e => e.id === eventId) || (await supabase
+      .from('events')
+      .select('id, name, date, location, current_phase, phase1_max_bookings, phase2_max_bookings')
+      .eq('id', eventId)
+      .single()).data;
+
+    if (event) {
 
       // Get stats specific to this event
       const [
         { count: eventCompanies },
         { count: totalSlots }
       ] = await Promise.all([
-        supabase.from('event_participants').select('*', { count: 'exact', head: true }).eq('event_id', upcomingEvent.id),
-        supabase.from('event_slots').select('*', { count: 'exact', head: true }).eq('event_id', upcomingEvent.id).eq('is_active', true)
+        supabase.from('event_participants').select('*', { count: 'exact', head: true }).eq('event_id', eventId),
+        supabase.from('event_slots').select('*', { count: 'exact', head: true }).eq('event_id', eventId).eq('is_active', true)
       ]);
 
       // Get bookings count
       const { count: eventBookings } = await supabase
         .from('interview_bookings')
         .select('*, event_slots!inner(event_id)', { count: 'exact', head: true })
-        .eq('event_slots.event_id', upcomingEvent.id)
+        .eq('event_slots.event_id', eventId)
         .eq('status', 'confirmed');
 
       // Get unique students who have bookings for this event
       const { data: studentBookings } = await supabase
         .from('interview_bookings')
         .select('student_id, event_slots!inner(event_id)')
-        .eq('event_slots.event_id', upcomingEvent.id)
+        .eq('event_slots.event_id', eventId)
         .eq('status', 'confirmed');
 
       const uniqueStudents = new Set(studentBookings?.map(b => b.student_id) || []).size;
@@ -108,7 +122,7 @@ export default function AdminDashboard() {
       const { data: confirmedBookings } = await supabase
         .from('interview_bookings')
         .select('event_slots!inner(company_id, event_id, companies!inner(company_name))')
-        .eq('event_slots.event_id', upcomingEvent.id)
+        .eq('event_slots.event_id', eventId)
         .eq('status', 'confirmed');
 
       const companyCounts: Record<string, { name: string; count: number }> = {};
@@ -123,7 +137,6 @@ export default function AdminDashboard() {
 
       const topCompanyEntry = Object.values(companyCounts).sort((a, b) => b.count - a.count)[0];
       const availableSlots = (totalSlots || 0) - (eventBookings || 0);
-      const bookingRate = totalSlots && totalSlots > 0 ? Math.round((eventBookings || 0) / totalSlots * 100) : 0;
 
       setStats({
         event_companies: eventCompanies || 0,
@@ -132,12 +145,17 @@ export default function AdminDashboard() {
         total_students: uniqueStudents,
         total_slots: totalSlots || 0,
         available_slots: availableSlots,
-        booking_rate: bookingRate,
         top_company_name: topCompanyEntry?.name || 'N/A',
         top_company_bookings: topCompanyEntry?.count || 0
       });
     }
   };
+
+  useEffect(() => {
+    if (selectedEventId) {
+      loadEventStats(selectedEventId);
+    }
+  }, [selectedEventId]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -155,7 +173,9 @@ export default function AdminDashboard() {
     );
   }
 
-  if (!nextEvent) {
+  const selectedEvent = events.find(e => e.id === selectedEventId);
+
+  if (!selectedEvent) {
     return (
       <div className="min-h-screen bg-background">
         <header className="bg-card border-b border-border">
@@ -191,7 +211,7 @@ export default function AdminDashboard() {
     );
   }
 
-  const eventDate = new Date(nextEvent.date);
+  const eventDate = new Date(selectedEvent.date);
   const formattedDate = eventDate.toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
@@ -221,31 +241,57 @@ export default function AdminDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Event Selector */}
+        <div className="mb-6">
+          <label htmlFor="event-select" className="block text-sm font-medium text-muted-foreground mb-2">
+            Select Event
+          </label>
+          <select
+            id="event-select"
+            value={selectedEventId || ''}
+            onChange={(e) => setSelectedEventId(e.target.value)}
+            className="w-full md:w-96 px-4 py-2 bg-card border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            {events.map((event) => {
+              const date = new Date(event.date).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+              });
+              return (
+                <option key={event.id} value={event.id}>
+                  {event.name} - {date}
+                </option>
+              );
+            })}
+          </select>
+        </div>
+
         {/* Event Header */}
         <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-xl border border-primary/20 p-6 mb-8">
           <div className="flex items-start justify-between flex-wrap gap-4">
             <div>
               <div className="flex items-center gap-2 text-sm text-primary mb-2">
                 <Clock className="w-4 h-4" />
-                <span className="font-medium">Next Event</span>
+                <span className="font-medium">Selected Event</span>
               </div>
-              <h2 className="text-2xl font-bold text-foreground mb-2">{nextEvent.name}</h2>
+              <h2 className="text-2xl font-bold text-foreground mb-2">{selectedEvent.name}</h2>
               <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                 <div className="flex items-center gap-1">
                   <Calendar className="w-4 h-4" />
                   <span>{formattedDate}</span>
                 </div>
-                {nextEvent.location && (
+                {selectedEvent.location && (
                   <div className="flex items-center gap-1">
                     <MapPin className="w-4 h-4" />
-                    <span>{nextEvent.location}</span>
+                    <span>{selectedEvent.location}</span>
                   </div>
                 )}
               </div>
             </div>
             <div className="flex gap-3">
               <Link
-                to={`/admin/events/${nextEvent.id}/quick-invite`}
+                to={`/admin/events/${selectedEvent.id}/quick-invite`}
                 className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
               >
                 <UserPlus className="w-4 h-4" />
@@ -264,33 +310,33 @@ export default function AdminDashboard() {
 
         {/* Phase Status Card */}
         <div className={`rounded-xl border p-6 mb-6 ${
-          nextEvent.current_phase === 0 
+          selectedEvent.current_phase === 0 
             ? 'bg-destructive/10 border-destructive/30' 
             : 'bg-primary/10 border-primary/30'
         }`}>
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-4">
-              {nextEvent.current_phase === 0 ? (
+              {selectedEvent.current_phase === 0 ? (
                 <AlertCircle className="w-6 h-6 text-destructive flex-shrink-0 mt-1" />
               ) : (
                 <Settings className="w-6 h-6 text-primary flex-shrink-0 mt-1" />
               )}
               <div>
                 <h3 className="font-semibold text-foreground mb-1">
-                  Booking Phase {nextEvent.current_phase}
-                  {nextEvent.current_phase === 0 && ' - Bookings Closed'}
-                  {nextEvent.current_phase === 1 && ' - Priority Phase'}
-                  {nextEvent.current_phase === 2 && ' - Open Phase'}
+                  Booking Phase {selectedEvent.current_phase}
+                  {selectedEvent.current_phase === 0 && ' - Bookings Closed'}
+                  {selectedEvent.current_phase === 1 && ' - Priority Phase'}
+                  {selectedEvent.current_phase === 2 && ' - Open Phase'}
                 </h3>
                 <p className="text-sm text-muted-foreground mb-2">
-                  {nextEvent.current_phase === 0 && 'Students cannot book interviews yet'}
-                  {nextEvent.current_phase === 1 && `Students can book up to ${nextEvent.phase1_max_bookings} interviews`}
-                  {nextEvent.current_phase === 2 && `Students can book up to ${nextEvent.phase2_max_bookings} interviews`}
+                  {selectedEvent.current_phase === 0 && 'Students cannot book interviews yet'}
+                  {selectedEvent.current_phase === 1 && `Students can book up to ${selectedEvent.phase1_max_bookings} interviews`}
+                  {selectedEvent.current_phase === 2 && `Students can book up to ${selectedEvent.phase2_max_bookings} interviews`}
                 </p>
               </div>
             </div>
             <Link
-              to={`/admin/events/${nextEvent.id}/phases`}
+              to={`/admin/events/${selectedEvent.id}/phases`}
               className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-lg hover:bg-accent transition-colors text-sm font-medium"
             >
               <Settings className="w-4 h-4" />
@@ -302,7 +348,7 @@ export default function AdminDashboard() {
         {/* Stats Grid - Row 1: Core Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <Link
-            to={`/admin/events/${nextEvent.id}/companies`}
+            to={`/admin/events/${selectedEvent.id}/companies`}
             className="bg-card rounded-xl border border-border p-6 hover:border-primary hover:shadow-lg transition-all cursor-pointer group"
           >
             <div className="flex items-center justify-between mb-4">
@@ -317,7 +363,7 @@ export default function AdminDashboard() {
           </Link>
 
           <Link
-            to={`/admin/events/${nextEvent.id}/students`}
+            to={`/admin/events/${selectedEvent.id}/students`}
             className="bg-card rounded-xl border border-border p-6 hover:border-primary hover:shadow-lg transition-all cursor-pointer group"
           >
             <div className="flex items-center justify-between mb-4">
@@ -332,7 +378,7 @@ export default function AdminDashboard() {
           </Link>
 
           <Link
-            to={`/admin/events/${nextEvent.id}/participants`}
+            to={`/admin/events/${selectedEvent.id}/participants`}
             className="bg-card rounded-xl border border-border p-6 hover:border-primary hover:shadow-lg transition-all cursor-pointer group"
           >
             <div className="flex items-center justify-between mb-4">
@@ -342,15 +388,15 @@ export default function AdminDashboard() {
               <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
             </div>
             <p className="text-3xl font-bold text-foreground mb-1">{stats?.event_bookings || 0}</p>
-            <p className="text-sm font-medium text-foreground mb-1">Bookings</p>
-            <p className="text-xs text-muted-foreground">interviews scheduled</p>
+            <p className="text-sm font-medium text-foreground mb-1">Interviews Scheduled</p>
+            <p className="text-xs text-muted-foreground">confirmed bookings</p>
           </Link>
         </div>
 
         {/* Stats Grid - Row 2: Insights */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Link
-            to={`/admin/events/${nextEvent.id}/slots`}
+            to={`/admin/events/${selectedEvent.id}/slots`}
             className="bg-card rounded-xl border border-border p-6 hover:border-primary hover:shadow-lg transition-all cursor-pointer group"
           >
             <div className="flex items-center justify-between mb-4">
@@ -372,7 +418,7 @@ export default function AdminDashboard() {
             </div>
             <p className="text-xl font-bold text-foreground mb-1 truncate">{stats?.top_company_name || 'N/A'}</p>
             <p className="text-sm font-medium text-foreground mb-1">Top Company</p>
-            <p className="text-xs text-muted-foreground">{stats?.top_company_bookings || 0} bookings</p>
+            <p className="text-xs text-muted-foreground">{stats?.top_company_bookings || 0} interviews</p>
           </div>
 
           <div className="bg-card rounded-xl border border-border p-6">
@@ -381,30 +427,22 @@ export default function AdminDashboard() {
                 <Target className="w-6 h-6 text-blue-500" />
               </div>
             </div>
-            <div className="mb-3">
-              <p className="text-3xl font-bold text-foreground mb-1">{stats?.booking_rate || 0}%</p>
-              <p className="text-sm font-medium text-foreground mb-1">Booking Rate</p>
-              <p className="text-xs text-muted-foreground">{stats?.event_bookings || 0} of {stats?.total_slots || 0} slots</p>
-            </div>
-            <div className="w-full bg-muted rounded-full h-2">
-              <div 
-                className="bg-blue-500 h-2 rounded-full transition-all"
-                style={{ width: `${stats?.booking_rate || 0}%` }}
-              />
-            </div>
+            <p className="text-3xl font-bold text-foreground mb-1">{stats?.event_bookings || 0}</p>
+            <p className="text-sm font-medium text-foreground mb-1">Total Interviews</p>
+            <p className="text-xs text-muted-foreground">scheduled for event</p>
           </div>
         </div>
 
         {/* Footer Navigation */}
         <div className="pt-6 border-t border-border">
           <div className="flex flex-wrap gap-4 justify-center text-sm">
-            <Link to={`/admin/events/${nextEvent.id}/sessions`} className="text-muted-foreground hover:text-foreground transition-colors">
+            <Link to={`/admin/events/${selectedEvent.id}/sessions`} className="text-muted-foreground hover:text-foreground transition-colors">
               Sessions
             </Link>
-            <Link to={`/admin/events/${nextEvent.id}/phases`} className="text-muted-foreground hover:text-foreground transition-colors">
+            <Link to={`/admin/events/${selectedEvent.id}/phases`} className="text-muted-foreground hover:text-foreground transition-colors">
               Phases
             </Link>
-            <Link to={`/admin/events/${nextEvent.id}/schedule`} className="text-muted-foreground hover:text-foreground transition-colors">
+            <Link to={`/admin/events/${selectedEvent.id}/schedule`} className="text-muted-foreground hover:text-foreground transition-colors">
               Schedule
             </Link>
             <Link to="/admin/events" className="text-muted-foreground hover:text-foreground transition-colors">
@@ -417,12 +455,15 @@ export default function AdminDashboard() {
         </div>
 
         {/* Bulk Import Modal */}
-        {showBulkImport && (
+        {showBulkImport && selectedEvent && (
           <BulkImportModal
-            eventId={nextEvent.id}
+            eventId={selectedEvent.id}
             onClose={() => setShowBulkImport(false)}
             onSuccess={() => {
-              loadDashboardData();
+              setShowBulkImport(false);
+              if (selectedEventId) {
+                loadEventStats(selectedEventId);
+              }
             }}
           />
         )}
