@@ -17,19 +17,6 @@ type SlotDetails = {
   company_code: string
   bookings: Booking[]
 }
-  id: string
-  start_time: string
-  end_time: string
-  capacity: number
-  company_id: string
-  session_id: string
-  companies: {
-    company_name: string
-    company_code: string
-  }
-  speed_recruiting_sessions: {
-    name: string
-  }
 
 type TimeSlot = {
   start_time: string
