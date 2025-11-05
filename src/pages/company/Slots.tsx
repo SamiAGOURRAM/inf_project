@@ -3,6 +3,18 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { ArrowLeft, Calendar, Clock, MapPin, Users } from 'lucide-react';
 
+type Booking = {
+  id: string;
+  student_id: string;
+  offer_id: string;
+  profiles: {
+    full_name: string;
+  };
+  offers: {
+    title: string;
+  } | null;
+};
+
 type Slot = {
   id: string;
   start_time: string;
@@ -12,7 +24,7 @@ type Slot = {
   event_id: string;
   event_name: string;
   event_date: string;
-  offer_title: string;
+  bookings: Booking[];
   bookings_count: number;
   is_active: boolean;
 };
@@ -67,21 +79,20 @@ export default function CompanySlots() {
         .select('id, name, date')
         .in('id', eventIds);
 
-      // Get offer details
-      const offerIds = [...new Set(eventSlots.map(s => s.offer_id).filter(Boolean))];
-      const { data: offers } = await supabase
-        .from('offers')
-        .select('id, title')
-        .in('id', offerIds);
-
       const eventMap = new Map(events?.map(e => [e.id, e]) || []);
-      const offerMap = new Map(offers?.map(o => [o.id, o.title]) || []);
-      // Count bookings for each slot
+      
+      // Get bookings with student and offer info
       const slotsWithBookings = await Promise.all(
         eventSlots.map(async (slot: any) => {
-          const { count } = await supabase
+          const { data: bookings } = await supabase
             .from('interview_bookings')
-            .select('*', { count: 'exact', head: true })
+            .select(`
+              id,
+              student_id,
+              offer_id,
+              profiles!inner(full_name),
+              offers(title)
+            `)
             .eq('slot_id', slot.id)
             .eq('status', 'confirmed');
 
@@ -97,8 +108,8 @@ export default function CompanySlots() {
             event_id: slot.event_id,
             event_name: event?.name || 'Unknown Event',
             event_date: event?.date || '',
-            offer_title: offerMap.get(slot.offer_id) || 'Unknown Offer',
-            bookings_count: count || 0,
+            bookings: bookings || [],
+            bookings_count: bookings?.length || 0,
           };
         })
       );
@@ -219,9 +230,20 @@ export default function CompanySlots() {
                             )}
                           </div>
 
-                          <p className="text-sm text-foreground font-medium mb-2 truncate">
-                            {slot.offer_title}
-                          </p>
+                          {slot.bookings.length > 0 && (
+                            <div className="mb-3 space-y-2">
+                              {slot.bookings.map((booking: any) => (
+                                <div key={booking.id} className="text-xs bg-background/50 rounded p-2">
+                                  <p className="font-medium text-foreground">
+                                    {booking.profiles?.full_name || 'Unknown'}
+                                  </p>
+                                  <p className="text-muted-foreground">
+                                    {booking.offers?.title || 'No offer selected'}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
 
                           {slot.location && (
                             <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
