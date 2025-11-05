@@ -3,16 +3,23 @@ import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Briefcase, Calendar, Users, LogOut, Clock, MapPin, Plus, Building2, ExternalLink, FileText } from 'lucide-react';
 
+type Event = {
+  id: string;
+  name: string;
+  date: string;
+  location: string | null;
+};
+
 type CompanyStats = {
   company_id: string;
   company_name: string;
-  next_event_id: string | null;
-  next_event_name: string | null;
-  next_event_date: string | null;
-  next_event_location: string | null;
   total_active_offers: number;
+  event_offers: number;
   total_slots: number;
   students_scheduled: number;
+  utilization_rate: number;
+  top_offer_title: string;
+  top_offer_bookings: number;
 };
 
 type ScheduledStudent = {
@@ -32,11 +39,20 @@ export default function CompanyDashboard() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<CompanyStats | null>(null);
   const [scheduledStudents, setScheduledStudents] = useState<ScheduledStudent[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState<string>('');
+  const [companyId, setCompanyId] = useState<string>('');
   const navigate = useNavigate();
 
   useEffect(() => {
     checkCompanyAndLoadData();
   }, []);
+
+  useEffect(() => {
+    if (selectedEventId && companyId) {
+      loadEventStats(companyId, selectedEventId);
+    }
+  }, [selectedEventId]);
 
   const checkCompanyAndLoadData = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -67,103 +83,143 @@ export default function CompanyDashboard() {
       return;
     }
 
-    // Get next event they're participating in
+    setCompanyId(company.id);
+
+    // Get events they're participating in
     const { data: participations } = await supabase
       .from('event_participants')
       .select('events(id, name, date, location)')
       .eq('company_id', company.id)
       .gte('events.date', new Date().toISOString());
 
-    // Sort in JavaScript and get first one
-    const sortedParticipations = participations
+    const participatingEvents = participations
       ?.filter(p => p.events)
-      .sort((a: any, b: any) => new Date(a.events.date).getTime() - new Date(b.events.date).getTime());
-    
-    const nextEvent = sortedParticipations?.[0]?.events || null;
+      .map(p => p.events as Event)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) || [];
 
-    // Get active offers count
-    const { count: activeOffers } = await supabase
+    if (participatingEvents.length > 0) {
+      setEvents(participatingEvents);
+      setSelectedEventId(participatingEvents[0].id);
+    } else {
+      setLoading(false);
+    }
+  };
+
+  const loadEventStats = async (companyId: string, eventId: string) => {
+    setLoading(true);
+
+    const { data: company } = await supabase
+      .from('companies')
+      .select('company_name')
+      .eq('id', companyId)
+      .single();
+
+    // Get total active offers (all events)
+    const { count: totalActiveOffers } = await supabase
       .from('offers')
       .select('*', { count: 'exact', head: true })
-      .eq('company_id', company.id)
+      .eq('company_id', companyId)
       .eq('is_active', true);
 
-    let totalSlots = 0;
-    let studentsScheduled = 0;
+    // Get offers for this event
+    const { count: eventOffers } = await supabase
+      .from('offers')
+      .select('*', { count: 'exact', head: true })
+      .eq('company_id', companyId)
+      .eq('event_id', eventId)
+      .eq('is_active', true);
 
-    // Get total slots and students scheduled (if next event exists)
-    if (nextEvent) {
-      const { count: slotsCount } = await supabase
-        .from('event_slots')
-        .select('*', { count: 'exact', head: true })
-        .eq('company_id', company.id)
-        .eq('event_id', nextEvent.id)
-        .eq('is_active', true);
+    // Get total slots for this event
+    const { count: totalSlots } = await supabase
+      .from('event_slots')
+      .select('*', { count: 'exact', head: true })
+      .eq('company_id', companyId)
+      .eq('event_id', eventId)
+      .eq('is_active', true);
 
-      totalSlots = slotsCount || 0;
+    // Get students scheduled for this event
+    const { count: studentsScheduled } = await supabase
+      .from('interview_bookings')
+      .select('*, event_slots!inner(company_id, event_id)', { count: 'exact', head: true })
+      .eq('event_slots.company_id', companyId)
+      .eq('event_slots.event_id', eventId)
+      .eq('status', 'confirmed');
 
-      const { count: bookedCount } = await supabase
-        .from('interview_bookings')
-        .select('*, event_slots!inner(company_id, event_id)', { count: 'exact', head: true })
-        .eq('event_slots.company_id', company.id)
-        .eq('event_slots.event_id', nextEvent.id)
-        .eq('status', 'confirmed');
+    // Calculate utilization rate
+    const utilizationRate = totalSlots && totalSlots > 0 
+      ? Math.round((studentsScheduled || 0) / totalSlots * 100) 
+      : 0;
 
-      studentsScheduled = bookedCount || 0;
+    // Get top performing offer
+    const { data: bookingsWithOffers } = await supabase
+      .from('interview_bookings')
+      .select('offer_id, offers!inner(title), event_slots!inner(company_id, event_id)')
+      .eq('event_slots.company_id', companyId)
+      .eq('event_slots.event_id', eventId)
+      .eq('status', 'confirmed');
 
-      // Get all scheduled students for this event
-      const { data: bookings } = await supabase
-        .from('interview_bookings')
-        .select(`
-          id,
-          student_id,
-          event_slots!inner(start_time, end_time, location, company_id, event_id, offer_id),
-          profiles!inner(full_name, email, phone, cv_url)
-        `)
-        .eq('event_slots.company_id', company.id)
-        .eq('event_slots.event_id', nextEvent.id)
-        .eq('status', 'confirmed');
+    const offerCounts: Record<string, { title: string; count: number }> = {};
+    bookingsWithOffers?.forEach((booking: any) => {
+      const offerId = booking.offer_id;
+      const offerTitle = booking.offers?.title || 'Unknown';
+      if (!offerCounts[offerId]) {
+        offerCounts[offerId] = { title: offerTitle, count: 0 };
+      }
+      offerCounts[offerId].count++;
+    });
 
-      // Get offer titles separately
-      const offerIds = [...new Set(bookings?.map((b: any) => b.event_slots?.offer_id).filter(Boolean))];
-      const { data: offers } = await supabase
-        .from('offers')
-        .select('id, title')
-        .in('id', offerIds);
+    const topOffer = Object.values(offerCounts).sort((a, b) => b.count - a.count)[0];
 
-      const offerMap = new Map(offers?.map(o => [o.id, o.title]) || []);
+    // Get scheduled students for this event
+    const { data: bookings } = await supabase
+      .from('interview_bookings')
+      .select(`
+        id,
+        student_id,
+        event_slots!inner(start_time, end_time, location, company_id, event_id, offer_id),
+        profiles!inner(full_name, email, phone, cv_url)
+      `)
+      .eq('event_slots.company_id', companyId)
+      .eq('event_slots.event_id', eventId)
+      .eq('status', 'confirmed');
 
-      // Sort by start_time in JavaScript
-      const sortedBookings = bookings?.sort((a: any, b: any) => 
-        new Date(a.event_slots.start_time).getTime() - new Date(b.event_slots.start_time).getTime()
-      );
+    const offerIds = [...new Set(bookings?.map((b: any) => b.event_slots?.offer_id).filter(Boolean))];
+    const { data: offers } = await supabase
+      .from('offers')
+      .select('id, title')
+      .in('id', offerIds);
 
-      const formattedStudents: ScheduledStudent[] = sortedBookings?.map((booking: any) => ({
-        booking_id: booking.id,
-        student_id: booking.student_id,
-        student_name: booking.profiles?.full_name || 'Unknown',
-        student_email: booking.profiles?.email || '',
-        student_phone: booking.profiles?.phone || null,
-        cv_url: booking.profiles?.cv_url || null,
-        offer_title: offerMap.get(booking.event_slots?.offer_id) || 'Unknown Offer',
-        slot_start_time: booking.event_slots?.start_time,
-        slot_end_time: booking.event_slots?.end_time,
-        slot_location: booking.event_slots?.location || null,
-      })) || [];
+    const offerMap = new Map(offers?.map(o => [o.id, o.title]) || []);
 
-      setScheduledStudents(formattedStudents);
-    }
+    const sortedBookings = bookings?.sort((a: any, b: any) => 
+      new Date(a.event_slots.start_time).getTime() - new Date(b.event_slots.start_time).getTime()
+    );
+
+    const formattedStudents: ScheduledStudent[] = sortedBookings?.map((booking: any) => ({
+      booking_id: booking.id,
+      student_id: booking.student_id,
+      student_name: booking.profiles?.full_name || 'Unknown',
+      student_email: booking.profiles?.email || '',
+      student_phone: booking.profiles?.phone || null,
+      cv_url: booking.profiles?.cv_url || null,
+      offer_title: offerMap.get(booking.event_slots?.offer_id) || 'Unknown Offer',
+      slot_start_time: booking.event_slots?.start_time,
+      slot_end_time: booking.event_slots?.end_time,
+      slot_location: booking.event_slots?.location || null,
+    })) || [];
+
+    setScheduledStudents(formattedStudents);
 
     setStats({
-      company_id: company.id,
-      company_name: company.company_name,
-      next_event_id: nextEvent?.id || null,
-      next_event_name: nextEvent?.name || null,
-      next_event_date: nextEvent?.date || null,
-      next_event_location: nextEvent?.location || null,
-      total_active_offers: activeOffers || 0,
-      total_slots: totalSlots,
-      students_scheduled: studentsScheduled,
+      company_id: companyId,
+      company_name: company?.company_name || '',
+      total_active_offers: totalActiveOffers || 0,
+      event_offers: eventOffers || 0,
+      total_slots: totalSlots || 0,
+      students_scheduled: studentsScheduled || 0,
+      utilization_rate: utilizationRate,
+      top_offer_title: topOffer?.title || 'N/A',
+      top_offer_bookings: topOffer?.count || 0,
     });
 
     setLoading(false);
@@ -214,44 +270,36 @@ export default function CompanyDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Next Event Banner */}
-        {stats?.next_event_id && (
+        {/* Event Selector */}
+        {events.length > 0 && (
           <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-xl border border-primary/20 p-6 mb-8">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="px-3 py-1 bg-primary/20 text-primary text-xs font-medium rounded-full">
-                    Participating
-                  </span>
-                </div>
-                <h2 className="text-xl font-bold text-foreground mb-2">{stats.next_event_name}</h2>
-                <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mb-3">
-                  <div className="flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
-                    {new Date(stats.next_event_date!).toLocaleDateString('en-US', { 
-                      weekday: 'short', 
-                      year: 'numeric', 
-                      month: 'short', 
-                      day: 'numeric' 
-                    })}
-                  </div>
-                  {stats.next_event_location && (
-                    <div className="flex items-center gap-1">
-                      <MapPin className="w-4 h-4" />
-                      {stats.next_event_location}
-                    </div>
-                  )}
-                </div>
-                <p className="text-sm text-foreground font-medium">
-                  {stats.students_scheduled} student{stats.students_scheduled !== 1 ? 's' : ''} scheduled • {stats.total_slots} slot{stats.total_slots !== 1 ? 's' : ''} created
-                </p>
+                <label className="block text-sm font-medium text-foreground mb-3">
+                  Select Event
+                </label>
+                <select
+                  value={selectedEventId}
+                  onChange={(e) => setSelectedEventId(e.target.value)}
+                  className="w-full px-4 py-3 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  {events.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.name} - {new Date(event.date).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
         )}
 
-        {/* Quick Actions if no event */}
-        {!stats?.next_event_id && (
+        {/* No Events Message */}
+        {events.length === 0 && (
           <div className="bg-card rounded-xl border border-border p-6 mb-8 text-center">
             <p className="text-muted-foreground mb-4">You're not participating in any upcoming events yet</p>
             <Link
@@ -265,29 +313,49 @@ export default function CompanyDashboard() {
         )}
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Link to="/company/offers" className="bg-card rounded-xl border border-border p-6 hover:border-primary hover:shadow-elegant transition-all group">
-            <div className="flex items-center justify-between mb-4">
-              <Briefcase className="w-8 h-8 text-blue-500 group-hover:scale-110 transition-transform" />
-              <Plus className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
-            </div>
-            <p className="text-3xl font-bold text-foreground mb-1">{stats?.total_active_offers || 0}</p>
-            <p className="text-sm text-muted-foreground">Active Offers</p>
-            <p className="text-xs text-primary mt-2 opacity-0 group-hover:opacity-100 transition-opacity">+ Create New</p>
-          </Link>
-          
-          <Link to="/company/slots" className="bg-card rounded-xl border border-border p-6 hover:border-primary hover:shadow-elegant transition-all group">
-            <Calendar className="w-8 h-8 text-purple-500 mb-4 group-hover:scale-110 transition-transform" />
-            <p className="text-3xl font-bold text-foreground mb-1">{stats?.total_slots || 0}</p>
-            <p className="text-sm text-muted-foreground">Interview Slots</p>
-          </Link>
+        {stats && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <Link to="/company/offers" className="bg-card rounded-xl border border-border p-6 hover:border-primary hover:shadow-elegant transition-all group">
+              <div className="flex items-center justify-between mb-4">
+                <Briefcase className="w-8 h-8 text-blue-500 group-hover:scale-110 transition-transform" />
+                <Plus className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+              </div>
+              <p className="text-3xl font-bold text-foreground mb-1">{stats.event_offers}</p>
+              <p className="text-sm text-muted-foreground">Event Offers</p>
+              <p className="text-xs text-blue-600 mt-2">{stats.total_active_offers} total active</p>
+            </Link>
+            
+            <Link to="/company/slots" className="bg-card rounded-xl border border-border p-6 hover:border-primary hover:shadow-elegant transition-all group">
+              <Calendar className="w-8 h-8 text-purple-500 mb-4 group-hover:scale-110 transition-transform" />
+              <p className="text-3xl font-bold text-foreground mb-1">{stats.total_slots}</p>
+              <p className="text-sm text-muted-foreground">Total Slots</p>
+              <p className="text-xs text-purple-600 mt-2">{stats.students_scheduled} booked</p>
+            </Link>
 
-          <Link to="/company/students" className="bg-card rounded-xl border border-border p-6 hover:border-primary hover:shadow-elegant transition-all group">
-            <Users className="w-8 h-8 text-green-500 mb-4 group-hover:scale-110 transition-transform" />
-            <p className="text-3xl font-bold text-foreground mb-1">{stats?.students_scheduled || 0}</p>
-            <p className="text-sm text-muted-foreground">Students Scheduled</p>
-          </Link>
-        </div>
+            <div className="bg-card rounded-xl border border-border p-6">
+              <div className="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center mb-4">
+                <Users className="w-6 h-6 text-green-500" />
+              </div>
+              <p className="text-3xl font-bold text-foreground mb-1">{stats.utilization_rate}%</p>
+              <p className="text-sm text-muted-foreground mb-2">Slot Utilization</p>
+              <div className="w-full bg-muted rounded-full h-2">
+                <div 
+                  className="bg-green-500 h-2 rounded-full transition-all"
+                  style={{ width: `${stats.utilization_rate}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="bg-card rounded-xl border border-border p-6">
+              <div className="w-12 h-12 bg-orange-500/10 rounded-lg flex items-center justify-center mb-4">
+                <Briefcase className="w-6 h-6 text-orange-500" />
+              </div>
+              <p className="text-xl font-bold text-foreground mb-1 truncate">{stats.top_offer_title}</p>
+              <p className="text-sm text-muted-foreground">Top Offer</p>
+              <p className="text-xs text-orange-600 mt-2">{stats.top_offer_bookings} booking{stats.top_offer_bookings !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+        )}
 
         {/* Scheduled Students */}
         <div className="bg-card rounded-xl border border-border p-6">
