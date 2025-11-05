@@ -173,7 +173,7 @@ export default function OfferDetail() {
       const slotsWithCounts = await Promise.all(
         slotsData.map(async (slot) => {
           const { count } = await supabase
-            .from('interview_bookings')
+            .from('bookings')
             .select('*', { count: 'exact', head: true })
             .eq('slot_id', slot.id)
             .eq('status', 'confirmed');
@@ -204,7 +204,7 @@ export default function OfferDetail() {
 
     // Get existing bookings - simplified query
     const { data: existingBookings, error } = await supabase
-      .from('interview_bookings')
+      .from('bookings')
       .select('slot_id')
       .eq('student_id', user.id)
       .eq('status', 'confirmed');

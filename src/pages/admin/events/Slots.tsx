@@ -97,7 +97,7 @@ export default function EventSlots() {
       const slotsWithCounts = await Promise.all(
         slotsData.map(async (slot: any) => {
           const { count } = await supabase
-            .from('interview_bookings')
+            .from('bookings')
             .select('*', { count: 'exact', head: true })
             .eq('slot_id', slot.id)
             .eq('status', 'confirmed')
@@ -140,12 +140,12 @@ export default function EventSlots() {
     try {
       // Fetch all bookings for these slots with student info
       const { data: bookingsData } = await supabase
-        .from('interview_bookings')
+        .from('bookings')
         .select(`
           id,
           student_id,
           slot_id,
-          profiles!interview_bookings_student_id_fkey (
+          profiles!bookings_student_id_fkey (
             full_name,
             email
           )

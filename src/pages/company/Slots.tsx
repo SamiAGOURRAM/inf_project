@@ -85,16 +85,29 @@ export default function CompanySlots() {
       const slotsWithBookings = await Promise.all(
         eventSlots.map(async (slot: any) => {
           const { data: bookings } = await supabase
-            .from('interview_bookings')
+            .from('bookings')
             .select(`
               id,
               student_id,
-              offer_id,
-              profiles!inner(full_name),
-              offers(title)
+              slot:event_slots!inner(offer_id),
+              profiles!inner(full_name)
             `)
             .eq('slot_id', slot.id)
             .eq('status', 'confirmed');
+
+          // Get offer titles separately
+          const offerIds = bookings?.map(b => b.slot?.offer_id).filter(Boolean) || [];
+          const { data: offers } = await supabase
+            .from('offers')
+            .select('id, title')
+            .in('id', offerIds);
+
+          const offersMap = new Map(offers?.map(o => [o.id, o]) || []);
+          
+          const bookingsWithOffers = bookings?.map(b => ({
+            ...b,
+            offers: b.slot?.offer_id ? offersMap.get(b.slot.offer_id) : null
+          })) || [];
 
           const event = eventMap.get(slot.event_id);
           
@@ -108,8 +121,8 @@ export default function CompanySlots() {
             event_id: slot.event_id,
             event_name: event?.name || 'Unknown Event',
             event_date: event?.date || '',
-            bookings: bookings || [],
-            bookings_count: bookings?.length || 0,
+            bookings: bookingsWithOffers || [],
+            bookings_count: bookingsWithOffers?.length || 0,
           };
         })
       );

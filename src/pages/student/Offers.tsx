@@ -182,7 +182,7 @@ export default function StudentOffers() {
       const slotsWithCounts = await Promise.all(
         slotsData.map(async (slot) => {
           const { count } = await supabase
-            .from('interview_bookings')
+            .from('bookings')
             .select('*', { count: 'exact', head: true })
             .eq('slot_id', slot.id)
             .eq('status', 'confirmed');
@@ -214,7 +214,7 @@ export default function StudentOffers() {
 
     // Check for time conflicts with existing bookings
     const { data: existingBookings } = await supabase
-      .from('interview_bookings')
+      .from('bookings')
       .select('event_slots!inner(start_time, end_time, companies!inner(company_name))')
       .eq('student_id', user.id)
       .eq('status', 'confirmed');

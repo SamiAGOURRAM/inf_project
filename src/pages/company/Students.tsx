@@ -62,9 +62,9 @@ export default function CompanyStudents() {
 
     // Get all bookings for these offers
     const { data: bookings } = await supabase
-      .from('interview_bookings')
-      .select('id, student_id, offer_id, slot_id, status')
-      .in('offer_id', offerIds);
+      .from('bookings')
+      .select('id, student_id, slot_id, status, event_slots!inner(offer_id)')
+      .in('event_slots.offer_id', offerIds);
 
     if (!bookings || bookings.length === 0) {
       setLoading(false);
@@ -101,7 +101,7 @@ export default function CompanyStudents() {
         specialization: profile?.specialization || null,
         graduation_year: profile?.graduation_year || null,
         cv_url: profile?.cv_url || null,
-        offer_title: offerMap.get(booking.offer_id) || 'Unknown',
+        offer_title: offerMap.get((booking as any).event_slots?.offer_id) || 'Unknown',
         slot_time: slotMap.get(booking.slot_id) || '',
         status: booking.status,
       };

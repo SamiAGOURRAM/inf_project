@@ -104,14 +104,14 @@ export default function AdminDashboard() {
 
       // Get bookings count
       const { count: eventBookings } = await supabase
-        .from('interview_bookings')
+        .from('bookings')
         .select('*, event_slots!inner(event_id)', { count: 'exact', head: true })
         .eq('event_slots.event_id', eventId)
         .eq('status', 'confirmed');
 
       // Get unique students who have bookings for this event
       const { data: studentBookings } = await supabase
-        .from('interview_bookings')
+        .from('bookings')
         .select('student_id, event_slots!inner(event_id)')
         .eq('event_slots.event_id', eventId)
         .eq('status', 'confirmed');
@@ -120,7 +120,7 @@ export default function AdminDashboard() {
 
       // Get top company by bookings - reversed query to avoid 400 error
       const { data: confirmedBookings } = await supabase
-        .from('interview_bookings')
+        .from('bookings')
         .select('event_slots!inner(company_id, event_id, companies!inner(company_name))')
         .eq('event_slots.event_id', eventId)
         .eq('status', 'confirmed');

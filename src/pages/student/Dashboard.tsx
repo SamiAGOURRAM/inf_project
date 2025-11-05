@@ -43,7 +43,7 @@ export default function StudentDashboard() {
     }
 
     const { count: bookingsCount } = await supabase
-      .from('interview_bookings')
+      .from('bookings')
       .select('*', { count: 'exact', head: true })
       .eq('student_id', user.id)
       .eq('status', 'confirmed');
