@@ -296,7 +296,10 @@ export default function StudentOffers() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-sm text-muted-foreground animate-pulse">Loading offers...</p>
+        </div>
       </div>
     );
   }
@@ -386,17 +389,36 @@ export default function StudentOffers() {
 
         {/* Offers Grid */}
         {filteredOffers.length === 0 ? (
-          <div className="bg-card rounded-xl border border-border p-12 text-center">
-            <Briefcase className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+          <div className="bg-card rounded-xl border border-border p-12 text-center animate-fade-in">
+            <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+              <Briefcase className="w-10 h-10 text-muted-foreground opacity-50" />
+            </div>
             <h3 className="text-lg font-semibold text-foreground mb-2">No offers found</h3>
-            <p className="text-muted-foreground">Try adjusting your filters</p>
+            <p className="text-muted-foreground mb-6">
+              {searchQuery || filterTag || filterPaid 
+                ? "Try adjusting your filters to see more results" 
+                : "There are no active offers for this event yet"}
+            </p>
+            {(searchQuery || filterTag || filterPaid) && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setFilterTag('');
+                  setFilterPaid('');
+                }}
+                className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+              >
+                Clear All Filters
+              </button>
+            )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredOffers.map((offer) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+            {filteredOffers.map((offer, index) => (
               <div
                 key={offer.id}
-                className="bg-card rounded-xl border border-border p-6 hover:border-primary hover:shadow-elegant transition-all"
+                className="bg-card rounded-xl border border-border p-6 hover:border-primary hover:shadow-elegant transition-all hover-scale animate-fade-in"
+                style={{ animationDelay: `${index * 50}ms` }}
               >
                 <div className="flex items-start gap-4 mb-4">
                   <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -445,7 +467,7 @@ export default function StudentOffers() {
 
                 <button
                   onClick={() => handleBookInterview(offer)}
-                  className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
+                  className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all text-sm font-medium hover:scale-105 active:scale-95"
                 >
                   Book Interview
                 </button>
@@ -505,16 +527,28 @@ export default function StudentOffers() {
               )}
 
               {loadingSlots ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-3"></div>
+                  <p className="text-sm text-muted-foreground animate-pulse">Finding available slots...</p>
                 </div>
               ) : availableSlots.length === 0 ? (
-                <div className="text-center py-12">
-                  <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-                  <p className="text-muted-foreground">No available time slots</p>
+                <div className="text-center py-12 animate-fade-in">
+                  <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Calendar className="w-8 h-8 text-muted-foreground opacity-50" />
+                  </div>
+                  <h3 className="font-semibold text-foreground mb-2">No Available Slots</h3>
+                  <p className="text-muted-foreground text-sm mb-4">
+                    All interview slots for this company are currently booked
+                  </p>
+                  <button
+                    onClick={() => setSelectedOffer(null)}
+                    className="px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors text-sm"
+                  >
+                    Browse Other Offers
+                  </button>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 animate-fade-in">
                   {availableSlots.map((slot) => {
                     const spotsLeft = slot.capacity - slot.bookings_count;
                     const isLowCapacity = spotsLeft <= 2;

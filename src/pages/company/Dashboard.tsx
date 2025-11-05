@@ -233,7 +233,10 @@ export default function CompanyDashboard() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-sm text-muted-foreground animate-pulse">Loading dashboard...</p>
+        </div>
       </div>
     );
   }
@@ -300,11 +303,17 @@ export default function CompanyDashboard() {
 
         {/* No Events Message */}
         {events.length === 0 && (
-          <div className="bg-card rounded-xl border border-border p-6 mb-8 text-center">
-            <p className="text-muted-foreground mb-4">You're not participating in any upcoming events yet</p>
+          <div className="bg-card rounded-xl border border-border p-12 text-center animate-fade-in">
+            <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Calendar className="w-10 h-10 text-primary" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-2">No Upcoming Events</h3>
+            <p className="text-muted-foreground mb-6">
+              You're not participating in any upcoming events yet. Create your first offer to get started!
+            </p>
             <Link
               to="/company/offers"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all font-medium hover:scale-105 active:scale-95"
             >
               <Plus className="w-4 h-4" />
               Create Your First Offer
@@ -417,12 +426,17 @@ export default function CompanyDashboard() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-12">
-              <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-              <p className="text-muted-foreground mb-4">No students scheduled yet</p>
+            <div className="text-center py-12 animate-fade-in">
+              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                <Calendar className="w-8 h-8 text-muted-foreground opacity-50" />
+              </div>
+              <h3 className="font-semibold text-foreground mb-2">No Students Scheduled</h3>
+              <p className="text-muted-foreground text-sm mb-4">
+                Students will appear here once they book interview slots
+              </p>
               <Link
                 to="/company/slots"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all text-sm font-medium hover:scale-105 active:scale-95"
               >
                 View Slots
               </Link>

@@ -140,7 +140,10 @@ export default function StudentBookings() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-sm text-muted-foreground animate-pulse">Loading your bookings...</p>
+        </div>
       </div>
     );
   }
@@ -206,13 +209,14 @@ export default function StudentBookings() {
         </div>
 
         {upcomingBookings.length > 0 && (
-          <div className="bg-card rounded-xl border border-border p-6 mb-8">
+          <div className="bg-card rounded-xl border border-border p-6 mb-8 animate-fade-in">
             <h2 className="text-xl font-bold text-foreground mb-6">Upcoming Interviews</h2>
             <div className="space-y-4">
-              {upcomingBookings.map((booking) => (
+              {upcomingBookings.map((booking, index) => (
                 <div
                   key={booking.id}
-                  className="p-4 bg-background rounded-lg border border-border hover:border-primary transition-colors"
+                  className="p-4 bg-background rounded-lg border border-border hover:border-primary transition-all hover-scale animate-fade-in"
+                  style={{ animationDelay: `${index * 50}ms` }}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
@@ -248,7 +252,7 @@ export default function StudentBookings() {
                     </div>
                     <button
                       onClick={() => handleCancelBooking(booking.id)}
-                      className="px-4 py-2 text-sm text-red-600 hover:text-red-700 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                      className="px-4 py-2 text-sm text-red-600 hover:text-red-700 border border-red-200 rounded-lg hover:bg-red-50 transition-all hover:scale-105 active:scale-95"
                     >
                       Cancel
                     </button>
@@ -292,13 +296,17 @@ export default function StudentBookings() {
         )}
 
         {bookings.length === 0 && (
-          <div className="bg-card rounded-xl border border-border p-12 text-center">
-            <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+          <div className="bg-card rounded-xl border border-border p-12 text-center animate-fade-in">
+            <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Calendar className="w-10 h-10 text-primary" />
+            </div>
             <h3 className="text-lg font-semibold text-foreground mb-2">No bookings yet</h3>
-            <p className="text-muted-foreground mb-6">Start browsing offers to book your first interview</p>
+            <p className="text-muted-foreground mb-6">
+              Ready to schedule your first interview? Browse available offers and book a time that works for you.
+            </p>
             <Link
               to="/student/offers"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all font-medium hover:scale-105 active:scale-95"
             >
               <Briefcase className="w-4 h-4" />
               Browse Offers
