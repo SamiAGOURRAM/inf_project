@@ -274,14 +274,26 @@ export default function OfferDetail() {
         p_offer_id: offer.id
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('RPC Error:', error);
+        throw error;
+      }
 
-      if (data && data.success) {
-        alert('Interview booked successfully!');
+      // fn_book_interview returns TABLE, so data is an array
+      const result = Array.isArray(data) && data.length > 0 ? data[0] : null;
+      
+      if (!result) {
+        throw new Error('No response from booking function');
+      }
+
+      console.log('Booking result:', result);
+
+      if (result.success) {
+        alert(result.message || 'Interview booked successfully!');
         setShowBookingModal(false);
         navigate('/student/bookings');
       } else {
-        throw new Error(data?.error_message || 'Failed to book interview');
+        throw new Error(result.message || 'Failed to book interview');
       }
     } catch (error: any) {
       console.error('Error booking interview:', error);
