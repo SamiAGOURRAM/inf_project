@@ -20,6 +20,7 @@ export default function SessionManagement() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [event, setEvent] = useState<any>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -206,6 +207,69 @@ export default function SessionManagement() {
     return Math.floor(totalMs / durationMs);
   };
 
+  const generateSlotsForSession = async (session: Session) => {
+    if (!confirm(`Generate interview slots for "${session.name}"?\n\nThis will create ~${calculateSlotCount(session)} time slots for each participating company.`)) {
+      return;
+    }
+
+    try {
+      setGenerating(true);
+
+      // Get all participating companies for this event
+      const { data: participants } = await supabase
+        .from('event_participants')
+        .select('company_id')
+        .eq('event_id', eventId);
+
+      if (!participants || participants.length === 0) {
+        alert('No companies are registered for this event. Please invite companies first.');
+        return;
+      }
+
+      // Generate time slots based on session config
+      const slots: any[] = [];
+      const start = new Date(session.start_time);
+      const end = new Date(session.end_time);
+      const slotDuration = (session.interview_duration_minutes + session.buffer_minutes) * 60 * 1000;
+
+      let currentTime = start.getTime();
+      while (currentTime + (session.interview_duration_minutes * 60 * 1000) <= end.getTime()) {
+        const slotStart = new Date(currentTime);
+        const slotEnd = new Date(currentTime + (session.interview_duration_minutes * 60 * 1000));
+
+        // Create a slot for EACH company
+        for (const participant of participants) {
+          slots.push({
+            event_id: eventId,
+            company_id: participant.company_id,
+            session_id: session.id,
+            start_time: slotStart.toISOString(),
+            end_time: slotEnd.toISOString(),
+            capacity: session.slots_per_time,
+            is_active: true,
+            offer_id: null // Slots are company-level, not offer-specific
+          });
+        }
+
+        currentTime += slotDuration;
+      }
+
+      // Insert all slots
+      const { error } = await supabase
+        .from('event_slots')
+        .insert(slots);
+
+      if (error) throw error;
+
+      alert(`Successfully generated ${slots.length} interview slots!\n\n${slots.length / participants.length} slots per company × ${participants.length} companies`);
+    } catch (err) {
+      console.error('Error generating slots:', err);
+      alert('Error generating slots: ' + (err as any).message);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -303,8 +367,17 @@ export default function SessionManagement() {
                           <p className="font-medium text-foreground">{session.slots_per_time} students/slot</p>
                         </div>
                       </div>
-                      <div className="mt-3 text-sm text-muted-foreground">
-                        📊 ~{calculateSlotCount(session)} slots per company
+                      <div className="mt-3 flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">
+                          📊 ~{calculateSlotCount(session)} slots per company
+                        </div>
+                        <button
+                          onClick={() => generateSlotsForSession(session)}
+                          disabled={generating}
+                          className="px-3 py-1.5 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 transition disabled:opacity-50"
+                        >
+                          {generating ? 'Generating...' : 'Generate Slots'}
+                        </button>
                       </div>
                     </div>
                     <div className="flex gap-2 ml-4">
