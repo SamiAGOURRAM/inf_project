@@ -153,6 +153,8 @@ export default function EventSlots() {
         .in('slot_id', slotIds)
         .eq('status', 'confirmed')
 
+      console.log('Bookings data:', bookingsData)
+
       if (!bookingsData || bookingsData.length === 0) {
         setSlotDetails([])
         return
@@ -178,31 +180,30 @@ export default function EventSlots() {
 
       const companiesMap = new Map(companiesData?.map(c => [c.id, c]) || [])
 
-      // Group bookings by company
+      // Group bookings by company - only for slots that have bookings
       const companyMap = new Map<string, SlotDetails>()
       
-      slotsData.forEach((slot: any) => {
+      // Only process slots that have bookings
+      bookingsData.forEach((booking: any) => {
+        // Find the slot for this booking
+        const slot = slotsData.find(s => s.id === booking.slot_id)
+        if (!slot) return
+        
         const companyKey = slot.company_id
         const companyInfo = companiesMap.get(companyKey)
         
-        // Find bookings for this slot
-        const slotBookings = bookingsData?.filter(b => b.slot_id === slot.id) || []
-        
-        // Only add company if it has bookings
-        if (slotBookings.length > 0) {
-          if (!companyMap.has(companyKey)) {
-            companyMap.set(companyKey, {
-              company_name: companyInfo?.company_name || 'Unknown',
-              company_code: companyInfo?.company_code || 'N/A',
-              bookings: []
-            })
-          }
-          
-          const company = companyMap.get(companyKey)!
-          company.bookings.push(...slotBookings as any)
+        if (!companyMap.has(companyKey)) {
+          companyMap.set(companyKey, {
+            company_name: companyInfo?.company_name || 'Unknown',
+            company_code: companyInfo?.company_code || 'N/A',
+            bookings: []
+          })
         }
+        
+        companyMap.get(companyKey)!.bookings.push(booking as any)
       })
 
+      console.log('Final slot details:', Array.from(companyMap.values()))
       setSlotDetails(Array.from(companyMap.values()))
     } catch (err) {
       console.error('Error loading slot details:', err)
