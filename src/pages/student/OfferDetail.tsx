@@ -202,9 +202,10 @@ export default function OfferDetail() {
     const selectedSlot = availableSlots.find(s => s.id === slotId);
     if (!selectedSlot) return;
 
+    // Get existing bookings with slot details using a simpler query
     const { data: existingBookings } = await supabase
       .from('interview_bookings')
-      .select('event_slots!inner(start_time, end_time, companies!inner(company_name))')
+      .select('slot_id, event_slots(start_time, end_time, company_id, companies(company_name))')
       .eq('student_id', user.id)
       .eq('status', 'confirmed');
 
@@ -213,12 +214,14 @@ export default function OfferDetail() {
       const slotEnd = new Date(selectedSlot.end_time);
 
       for (const booking of existingBookings) {
+        if (!booking.event_slots) continue;
         const bookingStart = new Date(booking.event_slots.start_time);
         const bookingEnd = new Date(booking.event_slots.end_time);
 
         if (slotStart < bookingEnd && slotEnd > bookingStart) {
+          const companyName = booking.event_slots.companies?.company_name || 'Unknown Company';
           setValidationWarning(
-            `⚠️ Time conflict with ${booking.event_slots.companies.company_name} at ${bookingStart.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
+            `⚠️ Time conflict with ${companyName} at ${bookingStart.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
           );
           return;
         }
