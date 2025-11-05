@@ -29,6 +29,14 @@ type Slot = {
   bookings_count: number;
 };
 
+type BookingLimitInfo = {
+  can_book: boolean;
+  current_count: number;
+  max_allowed: number;
+  current_phase: number;
+  message: string;
+};
+
 export default function StudentOffers() {
   const [loading, setLoading] = useState(true);
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -40,6 +48,9 @@ export default function StudentOffers() {
   const [filterPaid, setFilterPaid] = useState<string>('');
   const [events, setEvents] = useState<Array<{ id: string; name: string; date: string }>>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>('');
+  const [bookingLimit, setBookingLimit] = useState<BookingLimitInfo | null>(null);
+  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
+  const [validationWarning, setValidationWarning] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -140,6 +151,21 @@ export default function StudentOffers() {
   const handleBookInterview = async (offer: Offer) => {
     setSelectedOffer(offer);
     setLoadingSlots(true);
+    setValidationWarning(null);
+    setSelectedSlotId(null);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Check booking limits
+    const { data: limitData } = await supabase.rpc('fn_check_student_booking_limit', {
+      p_student_id: user.id,
+      p_event_id: selectedEventId
+    });
+
+    if (limitData && limitData.length > 0) {
+      setBookingLimit(limitData[0]);
+    }
 
     // Get all slots for this company for the selected event
     const { data: slotsData } = await supabase
@@ -179,12 +205,53 @@ export default function StudentOffers() {
     setLoadingSlots(false);
   };
 
+  const checkSlotConflict = async (slotId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const selectedSlot = availableSlots.find(s => s.id === slotId);
+    if (!selectedSlot) return;
+
+    // Check for time conflicts with existing bookings
+    const { data: existingBookings } = await supabase
+      .from('interview_bookings')
+      .select('event_slots!inner(start_time, end_time, companies!inner(company_name))')
+      .eq('student_id', user.id)
+      .eq('status', 'confirmed');
+
+    if (existingBookings && existingBookings.length > 0) {
+      const slotStart = new Date(selectedSlot.start_time);
+      const slotEnd = new Date(selectedSlot.end_time);
+
+      for (const booking of existingBookings) {
+        const bookingStart = new Date(booking.event_slots.start_time);
+        const bookingEnd = new Date(booking.event_slots.end_time);
+
+        // Check for overlap
+        if (slotStart < bookingEnd && slotEnd > bookingStart) {
+          setValidationWarning(
+            `⚠️ Time conflict detected! You already have an interview with ${booking.event_slots.companies.company_name} at ${bookingStart.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
+          );
+          return;
+        }
+      }
+    }
+
+    setValidationWarning(null);
+  };
+
   const confirmBooking = async (slotId: string) => {
     if (!selectedOffer) return;
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+
+      // Final validation check
+      if (bookingLimit && !bookingLimit.can_book) {
+        alert('You have reached your booking limit for this phase.');
+        return;
+      }
 
       const { data, error } = await supabase.rpc('fn_book_interview', {
         p_student_id: user.id,
@@ -410,6 +477,33 @@ export default function StudentOffers() {
             </div>
 
             <div className="p-6">
+              {/* Booking Limit Info */}
+              {bookingLimit && (
+                <div className={`mb-4 p-4 rounded-lg border ${
+                  bookingLimit.can_book 
+                    ? 'bg-blue-50 border-blue-200' 
+                    : 'bg-red-50 border-red-200'
+                }`}>
+                  <p className={`text-sm font-medium ${
+                    bookingLimit.can_book ? 'text-blue-900' : 'text-red-900'
+                  }`}>
+                    {bookingLimit.message}
+                  </p>
+                  {bookingLimit.can_book && bookingLimit.current_count === bookingLimit.max_allowed - 1 && (
+                    <p className="text-xs text-orange-600 mt-1">
+                      ⚠️ This will be your last booking for this phase!
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Validation Warning */}
+              {validationWarning && (
+                <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                  <p className="text-sm text-orange-900">{validationWarning}</p>
+                </div>
+              )}
+
               {loadingSlots ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -421,50 +515,84 @@ export default function StudentOffers() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {availableSlots.map((slot) => (
-                    <button
-                      key={slot.id}
-                      onClick={() => confirmBooking(slot.id)}
-                      className="w-full p-4 bg-background rounded-lg border border-border hover:border-primary hover:shadow-elegant transition-all text-left"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <Clock className="w-4 h-4 text-primary" />
-                            <p className="font-medium text-foreground">
-                              {new Date(slot.start_time).toLocaleTimeString('en-US', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}{' '}
-                              -{' '}
-                              {new Date(slot.end_time).toLocaleTimeString('en-US', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </p>
-                          </div>
-                          <p className="text-sm text-muted-foreground">
-                            {new Date(slot.start_time).toLocaleDateString('en-US', {
-                              weekday: 'long',
-                              month: 'long',
-                              day: 'numeric',
-                            })}
-                          </p>
-                          {slot.location && (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                              <MapPin className="w-3 h-3" />
-                              {slot.location}
+                  {availableSlots.map((slot) => {
+                    const spotsLeft = slot.capacity - slot.bookings_count;
+                    const isLowCapacity = spotsLeft <= 2;
+                    const isSelected = selectedSlotId === slot.id;
+
+                    return (
+                      <div
+                        key={slot.id}
+                        className={`p-4 bg-background rounded-lg border transition-all ${
+                          isSelected 
+                            ? 'border-primary shadow-md' 
+                            : 'border-border hover:border-primary hover:shadow-elegant'
+                        }`}
+                      >
+                        <button
+                          onClick={() => {
+                            setSelectedSlotId(slot.id);
+                            checkSlotConflict(slot.id);
+                          }}
+                          className="w-full text-left"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <Clock className="w-4 h-4 text-primary" />
+                                <p className="font-medium text-foreground">
+                                  {new Date(slot.start_time).toLocaleTimeString('en-US', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}{' '}
+                                  -{' '}
+                                  {new Date(slot.end_time).toLocaleTimeString('en-US', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </p>
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                {new Date(slot.start_time).toLocaleDateString('en-US', {
+                                  weekday: 'long',
+                                  month: 'long',
+                                  day: 'numeric',
+                                })}
+                              </p>
+                              {slot.location && (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                                  <MapPin className="w-3 h-3" />
+                                  {slot.location}
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <span className="px-3 py-1 bg-green-500/10 text-green-600 text-xs font-medium rounded-full">
-                            {slot.capacity - slot.bookings_count} spot{slot.capacity - slot.bookings_count !== 1 ? 's' : ''} left
-                          </span>
-                        </div>
+                            <div className="text-right">
+                              <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                                isLowCapacity 
+                                  ? 'bg-orange-500/10 text-orange-600' 
+                                  : 'bg-green-500/10 text-green-600'
+                              }`}>
+                                {spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} left
+                              </span>
+                              {isLowCapacity && (
+                                <p className="text-xs text-orange-600 mt-1">Almost full!</p>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                        
+                        {isSelected && (
+                          <button
+                            onClick={() => confirmBooking(slot.id)}
+                            disabled={!bookingLimit?.can_book || !!validationWarning}
+                            className="w-full mt-3 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {validationWarning ? 'Cannot Book - Time Conflict' : 'Confirm Booking'}
+                          </button>
+                        )}
                       </div>
-                    </button>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
