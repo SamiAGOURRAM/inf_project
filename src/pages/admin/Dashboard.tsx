@@ -101,17 +101,17 @@ export default function AdminDashboard() {
 
       const uniqueStudents = new Set(studentBookings?.map(b => b.student_id) || []).size;
 
-      // Get top company - simplified approach
-      const { data: companySlots } = await supabase
-        .from('event_slots')
-        .select('company_id, companies!inner(company_name), interview_bookings!inner(status)')
-        .eq('event_id', upcomingEvent.id)
-        .eq('interview_bookings.status', 'confirmed');
+      // Get top company by bookings - reversed query to avoid 400 error
+      const { data: confirmedBookings } = await supabase
+        .from('interview_bookings')
+        .select('event_slots!inner(company_id, event_id, companies!inner(company_name))')
+        .eq('event_slots.event_id', upcomingEvent.id)
+        .eq('status', 'confirmed');
 
       const companyCounts: Record<string, { name: string; count: number }> = {};
-      companySlots?.forEach((slot: any) => {
-        const companyId = slot.company_id;
-        const companyName = slot.companies?.company_name || 'Unknown';
+      confirmedBookings?.forEach((booking: any) => {
+        const companyId = booking.event_slots?.company_id;
+        const companyName = booking.event_slots?.companies?.company_name || 'Unknown';
         if (!companyCounts[companyId]) {
           companyCounts[companyId] = { name: companyName, count: 0 };
         }
