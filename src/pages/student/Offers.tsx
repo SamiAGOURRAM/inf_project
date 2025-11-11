@@ -215,7 +215,7 @@ export default function StudentOffers() {
     // Check for time conflicts with existing bookings
     const { data: existingBookings } = await supabase
       .from('bookings')
-      .select('event_slots!inner(start_time, end_time, companies!inner(company_name))')
+      .select('event_slots!slot_id(start_time, end_time, companies(company_name))')
       .eq('student_id', user.id)
       .eq('status', 'confirmed');
 
@@ -260,13 +260,15 @@ export default function StudentOffers() {
 
       if (error) throw error;
 
-      if (data && data.success) {
-        alert('Interview booked successfully!');
+      const result = Array.isArray(data) && data.length > 0 ? data[0] : null;
+
+      if (result?.success) {
+        alert(result.message || 'Interview booked successfully!');
         setSelectedOffer(null);
         setAvailableSlots([]);
         navigate('/student/bookings');
       } else {
-        throw new Error(data?.error_message || 'Failed to book interview');
+        throw new Error(result?.message || 'Failed to book interview');
       }
     } catch (error: any) {
       console.error('Error booking interview:', error);
