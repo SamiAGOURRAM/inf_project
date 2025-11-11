@@ -270,8 +270,7 @@ export default function OfferDetail() {
 
       const { data, error } = await supabase.rpc('fn_book_interview', {
         p_student_id: user.id,
-        p_slot_id: slotId,
-        p_offer_id: offer.id
+        p_slot_id: slotId
       });
 
       if (error) {
