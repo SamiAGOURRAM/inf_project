@@ -37,31 +37,36 @@ export default function Signup() {
       // Determine role based on email domain
       const role = isGmail ? 'test_student' : 'student';
 
-      // Use signUp with an email confirmation link (magic link).
-      // Provide a redirect URL so the user returns to the app after confirming.
-      const { error: authError } = await supabase.auth.signUp({
+      // Instead of signUp, use signInWithOtp with createUser option
+      // This forces OTP flow and creates the user
+      const { data, error: otpError } = await supabase.auth.signInWithOtp({
         email: formData.email,
-        password: formData.password,
         options: {
+          shouldCreateUser: true,
           data: {
             full_name: formData.full_name,
             role: role,
             phone: formData.phone || null,
             is_deprioritized: formData.is_deprioritized,
+            // Store password for later (after OTP verification)
+            temp_password: formData.password,
           },
-          // When the user clicks the confirmation link in their email,
-          // they'll be redirected back to /verify-email so we can show a confirmation message.
-          emailRedirectTo: `${window.location.origin}/verify-email`,
         },
       });
 
-      if (authError) throw authError;
+      if (otpError) throw otpError;
 
-      console.log('✅ Signup created (or link sent) for:', formData.email);
-      console.log('📧 Check your email for the confirmation link');
-
-      // Show the verification screen which instructs the user to check their inbox.
-      navigate('/verify-email', { state: { email: formData.email } });
+      console.log('✅ OTP sent to:', formData.email);
+      console.log('📧 Check your email for 6-digit code');
+      
+      // Pass both email and password to verification page
+      navigate('/verify-email', { 
+        state: { 
+          email: formData.email,
+          password: formData.password,
+          isNewUser: true,
+        } 
+      });
       
     } catch (err: any) {
       console.error('❌ Signup error:', err);
