@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Suspense, lazy } from "react";
 import LoadingScreen from "./components/shared/LoadingScreen";
+import VerifyEmail from '@/pages/VerifyEmail';
 
 // Lazy load pages for better performance
 const SetPassword = lazy(() => import("./pages/auth/SetPassword"));
@@ -72,6 +73,7 @@ function App() {
           <Route path="/student/companies/:companyId" element={<StudentCompanyProfile />} />
           <Route path="/student/bookings" element={<StudentBookings />} />
           <Route path="/student/profile" element={<StudentProfile />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
           
           {/* Company Routes */}
           <Route path="/company" element={<CompanyDashboard />} />

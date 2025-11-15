@@ -32,7 +32,7 @@ export default function Signup() {
         throw new Error('Password must be at least 6 characters long');
       }
 
-      // Sign up user
+      // Sign up user with OTP instead of email link
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -43,19 +43,19 @@ export default function Signup() {
             phone: formData.phone || null,
             is_deprioritized: formData.is_deprioritized,
           },
-          emailRedirectTo: `${window.location.origin}/login`,
+          // Remove emailRedirectTo - OTP doesn't need it
         },
       });
 
       if (authError) throw authError;
       if (!authData.user) throw new Error('User creation failed');
 
-      // Log for debugging
       console.log('✅ User created:', authData.user.id);
-      console.log('📧 Email confirmation required:', !authData.user.confirmed_at);
+      console.log('📧 OTP sent to email');
 
-      setSuccess(true);
-      // Don't auto-redirect - let user read the instructions
+      // Navigate to OTP verification page with email
+      navigate('/verify-email', { state: { email: formData.email } });
+      
     } catch (err: any) {
       console.error('❌ Signup error:', err);
       setError(err.message || 'An error occurred during signup');
