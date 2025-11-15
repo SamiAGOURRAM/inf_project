@@ -21,15 +21,21 @@ export default function Signup() {
     setLoading(true);
 
     try {
-      // Validate email domain
-      if (!formData.email.endsWith('@um6p.ma')) {
-        throw new Error('Student email must be from UM6P domain (@um6p.ma)');
+      // Validate email domain - allow UM6P or Gmail for testing
+      const isUM6P = formData.email.endsWith('@um6p.ma');
+      const isGmail = formData.email.endsWith('@gmail.com');
+      
+      if (!isUM6P && !isGmail) {
+        throw new Error('Email must be from UM6P (@um6p.ma) or Gmail (@gmail.com) for testing');
       }
 
       // Validate password length
       if (formData.password.length < 6) {
         throw new Error('Password must be at least 6 characters long');
       }
+
+      // Determine role based on email domain
+      const role = isGmail ? 'test_student' : 'student';
 
       // Sign up user
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -38,7 +44,7 @@ export default function Signup() {
         options: {
           data: {
             full_name: formData.full_name,
-            role: 'student',
+            role: role,
             phone: formData.phone || null,
             is_deprioritized: formData.is_deprioritized,
           },
@@ -59,7 +65,8 @@ export default function Signup() {
 
       if (otpError) throw otpError;
 
-      console.log('✅ User created and OTP sent');
+      console.log('✅ User created with role:', role);
+      console.log('📧 OTP sent to:', formData.email);
       navigate('/verify-email', { state: { email: formData.email } });
       
     } catch (err: any) {
@@ -88,6 +95,9 @@ export default function Signup() {
               <p className="text-sm text-primary font-medium">UM6P Students Only</p>
               <p className="text-xs text-primary/80 mt-1">
                 Companies: Registration is by invitation only. Contact the event administrator.
+              </p>
+              <p className="text-xs text-orange-600 mt-1 font-medium">
+                🧪 Testing: Gmail accounts allowed with test_student role
               </p>
             </div>
           </div>
@@ -119,7 +129,7 @@ export default function Signup() {
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
-                UM6P Email <span className="text-destructive">*</span>
+                Email Address <span className="text-destructive">*</span>
               </label>
               <input
                 id="email"
@@ -131,7 +141,7 @@ export default function Signup() {
                 className="w-full px-4 py-3 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Must be a valid @um6p.ma email address
+                @um6p.ma for students or @gmail.com for testing
               </p>
             </div>
 
