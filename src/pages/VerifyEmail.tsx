@@ -11,6 +11,8 @@ export default function VerifyEmail() {
   const navigate = useNavigate();
   const location = useLocation();
   const email = location.state?.email;
+  const password = location.state?.password;
+  const isNewUser = location.state?.isNewUser;
 
   useEffect(() => {
     if (!email) {
@@ -24,13 +26,26 @@ export default function VerifyEmail() {
     setLoading(true);
 
     try {
+      // Verify the OTP
       const { data, error: verifyError } = await supabase.auth.verifyOtp({
         email: email,
         token: otp,
-        type: 'signup',
+        type: 'email',
       });
 
       if (verifyError) throw verifyError;
+      
+      // If this is a new user and we have a password, update it
+      if (isNewUser && password && data.session) {
+        const { error: updateError } = await supabase.auth.updateUser({
+          password: password,
+        });
+        
+        if (updateError) {
+          console.error('Password update error:', updateError);
+          // Don't throw - user is verified, just password update failed
+        }
+      }
       
       console.log('✅ Email verified successfully');
       navigate('/login', { state: { verified: true } });
@@ -48,9 +63,11 @@ export default function VerifyEmail() {
     setError('');
     
     try {
-      const { error: resendError } = await supabase.auth.resend({
-        type: 'signup',
+      const { error: resendError } = await supabase.auth.signInWithOtp({
         email: email,
+        options: {
+          shouldCreateUser: false,
+        },
       });
       
       if (resendError) throw resendError;

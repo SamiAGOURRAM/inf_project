@@ -37,37 +37,36 @@ export default function Signup() {
       // Determine role based on email domain
       const role = isGmail ? 'test_student' : 'student';
 
-      // Sign up user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // Instead of signUp, use signInWithOtp with createUser option
+      // This forces OTP flow and creates the user
+      const { data, error: otpError } = await supabase.auth.signInWithOtp({
         email: formData.email,
-        password: formData.password,
         options: {
+          shouldCreateUser: true,
           data: {
             full_name: formData.full_name,
             role: role,
             phone: formData.phone || null,
             is_deprioritized: formData.is_deprioritized,
+            // Store password for later (after OTP verification)
+            temp_password: formData.password,
           },
-          emailRedirectTo: undefined, // Don't use email links
-        },
-      });
-
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('User creation failed');
-
-      // Explicitly request OTP after signup
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email: formData.email,
-        options: {
-          shouldCreateUser: false, // User already created
         },
       });
 
       if (otpError) throw otpError;
 
-      console.log('✅ User created with role:', role);
-      console.log('📧 OTP sent to:', formData.email);
-      navigate('/verify-email', { state: { email: formData.email } });
+      console.log('✅ OTP sent to:', formData.email);
+      console.log('📧 Check your email for 6-digit code');
+      
+      // Pass both email and password to verification page
+      navigate('/verify-email', { 
+        state: { 
+          email: formData.email,
+          password: formData.password,
+          isNewUser: true,
+        } 
+      });
       
     } catch (err: any) {
       console.error('❌ Signup error:', err);
